@@ -80,7 +80,7 @@ export default function GuildFacet({ selectedIds = [], onChange, nameField = 'na
 			) : (
 				<ul className="max-h-[60vh] overflow-y-auto">
 					{guilds.map((guild) => {
-						const id = guild.id;
+						const id = guild.documentId;
 						const label = String(guild[nameField] ?? id);
 						const checked = selectedSet.has(id);
 

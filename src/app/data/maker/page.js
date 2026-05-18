@@ -7,8 +7,10 @@ import TableDisplay from '@/components/tableDisplay';
 import DateFacet from '@/components/dateFacet';
 import GuildFacet from '@/components/guildFacet';
 import MakerSearchBox from '@/components/makerSearchBox';
+import SurnameFacet from '@/components/surnameFacet';
 import TownFacet from '@/components/townFacet';
 import { requests } from '@/utils/requests';
+
 
 function Makers() {
   const router = useRouter();
@@ -18,10 +20,13 @@ function Makers() {
   const [makers, setMakers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+
   const [selectedGuildIds, setSelectedGuildIds] = useState([]);
   const [selectedTownIds, setSelectedTownIds] = useState([]);
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [surnameInitial, setSurnameInitial] = useState('');
   const [surnameQuery, setSurnameQuery] = useState('');
+
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInput, setPageInput] = useState('1');
   const [pageSize] = useState(25);
@@ -33,20 +38,16 @@ function Makers() {
     total: 0,
   });
 
-  // Hydrate filter/page state from URL (supports reload + back/forward)
   useEffect(() => {
     const q = searchParams.get('q') ?? '';
+    const initial = (searchParams.get('initial') ?? '').toUpperCase();
     const from = searchParams.get('from') ?? '';
     const to = searchParams.get('to') ?? '';
     const guildsRaw = searchParams.get('guilds') ?? '';
     const townsRaw = searchParams.get('towns') ?? '';
     const pageRaw = searchParams.get('page') ?? '1';
 
-    const parsedGuilds = guildsRaw
-      .split(',')
-      .map((value) => Number.parseInt(value, 10))
-      .filter((value) => !Number.isNaN(value));
-
+    const parsedGuilds = guildsRaw.split(',').filter(Boolean);
     const parsedTowns = townsRaw
       .split(',')
       .map((value) => Number.parseInt(value, 10))
@@ -56,15 +57,15 @@ function Makers() {
     const safePage = Number.isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
 
     setSurnameQuery(q);
+    setSurnameInitial(initial.length === 1 ? initial : '');
     setDateRange({ from, to });
-  setSelectedGuildIds(parsedGuilds);
+    setSelectedGuildIds(parsedGuilds);
     setSelectedTownIds(parsedTowns);
     setCurrentPage(safePage);
     setPageInput(String(safePage));
     setIsHydratedFromQuery(true);
   }, [searchParams]);
 
-  // Keep URL synced with current facet/page state
   useEffect(() => {
     if (!isHydratedFromQuery) return;
 
@@ -72,6 +73,9 @@ function Makers() {
 
     if (surnameQuery) nextParams.set('q', surnameQuery);
     else nextParams.delete('q');
+
+    if (surnameInitial) nextParams.set('initial', surnameInitial);
+    else nextParams.delete('initial');
 
     if (dateRange.from) nextParams.set('from', dateRange.from);
     else nextParams.delete('from');
@@ -104,6 +108,7 @@ function Makers() {
     searchParams,
     selectedGuildIds,
     selectedTownIds,
+    surnameInitial,
     surnameQuery,
   ]);
 
@@ -115,39 +120,54 @@ function Makers() {
         setIsLoading(true);
         setErrorMessage('');
 
-        // Compose Strapi filters from all active facets.
         const filterClauses = [];
 
         if (surnameQuery !== '') {
-          filterClauses.push({ surname: { $containsi: surnameQuery } });
+          filterClauses.push({ Surname: { $containsi: surnameQuery } });
+        }
+
+        if (surnameInitial !== '') {
+          filterClauses.push({ Surname: { $startsWithi: surnameInitial } });
         }
 
         if (selectedGuildIds.length > 0) {
           filterClauses.push({
-            memberships: { guild: { id: { $in: selectedGuildIds } } },
+            memberships: {
+              guild: {
+                documentId: { $in: selectedGuildIds },
+              },
+            },
           });
         }
 
         if (selectedTownIds.length > 0) {
           filterClauses.push({
-            addresses: { town_location: { id: { $in: selectedTownIds } } },
+            addresses: {
+              town_location: {
+                id: { $in: selectedTownIds },
+              },
+            },
           });
         }
 
         if (dateRange.from !== '') {
-          filterClauses.push({ date_1: { $gte: Number(dateRange.from) } });
+          filterClauses.push({ Date_1: { $gte: Number(dateRange.from) } });
         }
 
         if (dateRange.to !== '') {
-          filterClauses.push({ date_2: { $lte: Number(dateRange.to) } });
+          filterClauses.push({ Date_2: { $lte: Number(dateRange.to) } });
         }
 
         const queryParams = {
           ...(filterClauses.length > 0 ? { filters: { $and: filterClauses } } : {}),
-          sort: ['surname:asc', 'first_name:asc'],
+          sort: ['Surname:asc', 'First_name:asc', 'Label:asc'],
         };
 
-        const response = await requests.makers.listPage(queryParams, { page: currentPage, pageSize });
+        const response = await requests.makersExtended.listPage(queryParams, {
+          page: currentPage,
+          pageSize,
+        });
+
         setMakers(response?.data ?? []);
         setPagination(
           response?.meta?.pagination ?? {
@@ -168,9 +188,10 @@ function Makers() {
   }, [
     currentPage,
     pageSize,
+    dateRange,
     selectedGuildIds,
     selectedTownIds,
-    dateRange,
+    surnameInitial,
     surnameQuery,
     isHydratedFromQuery,
   ]);
@@ -181,11 +202,11 @@ function Makers() {
 
   const columns = useMemo(
     () => [
-      { key: 'maker_id', header: 'ID' },
-      { key: 'surname', header: 'Surname' },
-      { key: 'first_name', header: 'First Name' },
-      { key: 'date_1', header: 'Date 1' },
-      { key: 'date_2', header: 'Date 2' },
+      { key: 'Maker_ID', header: 'ID' },
+      { key: 'Surname', header: 'Surname' },
+      { key: 'First_name', header: 'First Name' },
+      { key: 'Maker_Type', header: 'Maker Type' },
+      { key: 'Label', header: 'Label' },
       {
         key: 'documentId',
         header: 'Record',
@@ -241,89 +262,96 @@ function Makers() {
     setPageInput('1');
   };
 
+  const handleSurnameInitialChange = (value) => {
+    setSurnameInitial(value);
+    setCurrentPage(1);
+    setPageInput('1');
+  };
+
   return (
     <div className="flex min-h-screen flex-col items-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex w-full flex-1 flex-col gap-6 px-6 py-10 sm:px-10">
         <h1 className="text-4xl font-bold text-zinc-900 dark:text-zinc-100">Instrument Makers</h1>
 
         <div className="flex gap-8">
-
           <div className="flex flex-1 flex-col gap-4">
             <MakerSearchBox value={surnameQuery} onChange={handleSurnameChange} />
-        {errorMessage ? (
-          <p className="rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300">
-            {errorMessage}
-          </p>
-        ) : null}
+            <SurnameFacet value={surnameInitial} onChange={handleSurnameInitialChange} />
 
-        {isLoading ? (
-          <p className="text-zinc-600 dark:text-zinc-300">Loading makers…</p>
-        ) : (
-          <>
-            <TableDisplay
-              data={makers}
-              columns={columns}
-              rowKey="id"
-              emptyMessage="No makers found."
-            />
-
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-sm text-zinc-600 dark:text-zinc-300">
-                Page {pagination.page} of {pagination.pageCount} ({pagination.total} total)
+            {errorMessage ? (
+              <p className="rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300">
+                {errorMessage}
               </p>
+            ) : null}
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  disabled={pagination.page <= 1 || isLoading}
-                  className="rounded border border-zinc-300 px-3 py-1 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentPage((page) => Math.min(pagination.pageCount || 1, page + 1))
-                  }
-                  disabled={pagination.page >= pagination.pageCount || isLoading}
-                  className="rounded border border-zinc-300 px-3 py-1 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200"
-                >
-                  Next
-                </button>
-                <form onSubmit={handlePageSubmit} className="ml-2 flex items-center gap-2">
-                  <label htmlFor="page-input" className="text-sm text-zinc-600 dark:text-zinc-300">
-                    Go to
-                  </label>
-                  <input
-                    id="page-input"
-                    type="number"
-                    min={1}
-                    max={pagination.pageCount || 1}
-                    value={pageInput}
-                    onChange={(event) => setPageInput(event.target.value)}
-                    className="w-20 rounded border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="rounded border border-zinc-300 px-3 py-1 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200"
-                  >
-                    Go
-                  </button>
-                </form>
-              </div>
-            </div>
-          </>
-        )}
+            {isLoading ? (
+              <p className="text-zinc-600 dark:text-zinc-300">Loading makers…</p>
+            ) : (
+              <>
+                <TableDisplay
+                  data={makers}
+                  columns={columns}
+                  rowKey="documentId"
+                  emptyMessage="No makers found."
+                />
+
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                    Page {pagination.page} of {pagination.pageCount} ({pagination.total} total)
+                  </p>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      disabled={pagination.page <= 1 || isLoading}
+                      className="rounded border border-zinc-300 px-3 py-1 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCurrentPage((page) => Math.min(pagination.pageCount || 1, page + 1))
+                      }
+                      disabled={pagination.page >= pagination.pageCount || isLoading}
+                      className="rounded border border-zinc-300 px-3 py-1 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200"
+                    >
+                      Next
+                    </button>
+                    <form onSubmit={handlePageSubmit} className="ml-2 flex items-center gap-2">
+                      <label htmlFor="page-input" className="text-sm text-zinc-600 dark:text-zinc-300">
+                        Go to
+                      </label>
+                      <input
+                        id="page-input"
+                        type="number"
+                        min={1}
+                        max={pagination.pageCount || 1}
+                        value={pageInput}
+                        onChange={(event) => setPageInput(event.target.value)}
+                        className="w-20 rounded border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="rounded border border-zinc-300 px-3 py-1 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200"
+                      >
+                        Go
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
+
           <div className="flex flex-col gap-6">
             <GuildFacet selectedIds={selectedGuildIds} onChange={handleGuildChange} />
             <TownFacet selectedIds={selectedTownIds} onChange={handleTownChange} />
             <DateFacet dateRange={dateRange} onChange={handleDateRangeChange} />
           </div>
         </div>
-        
       </main>
     </div>
   );

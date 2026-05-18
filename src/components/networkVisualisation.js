@@ -19,6 +19,7 @@ const GraphCanvas = dynamic(
  *   - Related makers   (type: maker, fill: blue)  — via relations[].disambiguated_relation.target_maker
  *   - Guilds           (type: guild, fill: amber)  — via memberships[].guild
  *   - Towns            (type: town,  fill: emerald) — via addresses[].town_location
+ *   - Instruments      (type: instrument, fill: rose) — via instruments_advertised / instruments_known
  *
  * Clicking a related-maker node navigates to their detail page.
  *
@@ -29,7 +30,14 @@ const GraphCanvas = dynamic(
 export default function NetworkVisualisation({ maker, height = '500px' }) {
   const router = useRouter();
 
-  console.log('Rendering NetworkVisualisation with maker:', maker);
+  const getMakerDocumentId = (item) => item?.documentId ?? item?.id ?? null;
+  const getMakerLabel = (item) =>
+    item?.Label ||
+    [item?.First_name ?? item?.first_name, item?.Surname ?? item?.surname]
+      .filter(Boolean)
+      .join(' ') ||
+    item?.Organisation_Name ||
+    `Maker #${item?.id ?? 'unknown'}`;
 
   const { nodes, edges } = useMemo(() => {
     if (!maker) return { nodes: [], edges: [] };
@@ -37,6 +45,7 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
     const nodes = [];
     const edges = [];
     const seenNodeIds = new Set();
+    const seenEdgeKeys = new Set();
 
     const addNode = (node) => {
       if (!seenNodeIds.has(node.id)) {
@@ -45,14 +54,28 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
       }
     };
 
-    const focalId = `maker-${maker.documentId}`;
-    const focalLabel = [maker.first_name, maker.surname].filter(Boolean).join(' ') || `Maker #${maker.id}`;
+    const addEdge = ({ source, target, label }) => {
+      const edgeKey = `${source}->${target}|${label ?? ''}`;
+      if (seenEdgeKeys.has(edgeKey)) return;
+
+      seenEdgeKeys.add(edgeKey);
+      edges.push({
+        id: edgeKey,
+        source,
+        target,
+        label,
+      });
+    };
+
+    const focalMakerId = getMakerDocumentId(maker);
+    const focalId = `maker-${focalMakerId}`;
+    const focalLabel = getMakerLabel(maker);
 
     addNode({
       id: focalId,
       label: focalLabel,
       fill: '#6366f1', // indigo — focal maker
-      data: { type: 'maker', makerId: maker.documentId },
+      data: { type: 'maker', makerId: focalMakerId },
     });
 
     // ── Related makers via relations ────────────────────────────────────────
@@ -60,24 +83,19 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
       const target = rel.target_maker;
       if (!target?.id) continue;
 
-      const targetId = `maker-${target.id}`;
-      const targetLabel =
-        [target.first_name, target.surname].filter(Boolean).join(' ') || `Maker #${target.id}`;
+      const targetMakerId = getMakerDocumentId(target);
+      const targetId = `maker-${targetMakerId}`;
+      const targetLabel = getMakerLabel(target);
       const edgeLabel = rel.relation_type?.name ?? rel.relation_description ?? 'relation';
 
       addNode({
         id: targetId,
         label: targetLabel,
         fill: '#3b82f6', // blue — related maker
-        data: { type: 'maker', makerId: target.documentId },
+        data: { type: 'maker', makerId: targetMakerId },
       });
 
-      edges.push({
-        id: `rel-${rel.id}`,
-        source: focalId,
-        target: targetId,
-        label: edgeLabel,
-      });
+      addEdge({ source: focalId, target: targetId, label: edgeLabel });
     }
 
     // ── Guilds via memberships ───────────────────────────────────────────────
@@ -94,12 +112,7 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
         data: { type: 'guild', guildId: guild.id },
       });
 
-      edges.push({
-        id: `membership-${membership.id}`,
-        source: focalId,
-        target: guildId,
-        label: 'member of',
-      });
+      addEdge({ source: focalId, target: guildId, label: 'member of' });
     }
 
     // ── Towns via addresses ──────────────────────────────────────────────────
@@ -117,19 +130,40 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
         data: { type: 'town', townId: town.id },
       });
 
-      edges.push({
-        id: `address-${address.id}-town`,
-        source: focalId,
-        target: townId,
-        label: 'located in',
+      addEdge({ source: focalId, target: townId, label: 'located in' });
+    }
+
+    // ── Instruments via advertised / known relations ─────────────────────────
+    const addInstrumentNodeAndEdge = (instrument, relationLabel) => {
+      if (!instrument) return;
+
+      const instrumentKey = instrument.id ?? `${instrument.inst_name ?? 'unknown'}-${instrument.inst_code ?? ''}`;
+      const instrumentId = `instrument-${instrumentKey}`;
+      const instrumentLabel = instrument.inst_name ?? `Instrument #${instrumentKey}`;
+
+      addNode({
+        id: instrumentId,
+        label: instrumentLabel,
+        fill: '#f43f5e',
+        data: { type: 'instrument', instrumentId: instrument.id ?? null },
       });
+
+      addEdge({ source: focalId, target: instrumentId, label: relationLabel });
+    };
+
+    for (const instrument of maker.instruments_advertised ?? []) {
+      addInstrumentNodeAndEdge(instrument, 'advertised');
+    }
+
+    for (const instrument of maker.instruments_known ?? []) {
+      addInstrumentNodeAndEdge(instrument, 'known for');
     }
 
     return { nodes, edges };
   }, [maker]);
 
   const handleNodeClick = (node) => {
-    if (node?.data?.type === 'maker' && node.data.makerId !== maker?.id) {
+    if (node?.data?.type === 'maker' && node.data.makerId && node.data.makerId !== maker?.documentId) {
       router.push(`/data/maker/detail?id=${node.data.makerId}`);
     }
   };

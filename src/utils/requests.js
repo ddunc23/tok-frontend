@@ -124,6 +124,7 @@ export const requests = {
 	instrumentsAdvertised: createCollectionRequests('instruments-advertised'),
 	instrumentsKnown: createCollectionRequests('instruments-known'),
 	makers: createCollectionRequests('makers'),
+    makersExtended: createCollectionRequests('makers-extended'),
 	memberships: createCollectionRequests('memberships'),
 	relationMetas: createCollectionRequests('relation-metas'),
 	relations: createCollectionRequests('relations'),

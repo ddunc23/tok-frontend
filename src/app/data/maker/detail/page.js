@@ -6,73 +6,6 @@ import { requests } from '@/utils/requests';
 import NetworkVisualisation from '@/components/networkVisualisation';
 
 
-const instrumentAdvertisedSchema = {
-  "kind": "collectionType",
-  "collectionName": "instruments_advertised",
-  "info": {
-    "singularName": "instrument-advertised",
-    "pluralName": "instruments-advertised",
-    "displayName": "Instrument Advertised",
-    "description": "Instruments advertised by a maker"
-  },
-  "options": {
-    "draftAndPublish": false
-  },
-  "pluginOptions": {},
-  "attributes": {
-    "maker": {
-      "type": "relation",
-      "relation": "manyToOne",
-      "target": "api::maker.maker",
-      "inversedBy": "instruments_advertised"
-    },
-    "inst_code": {
-      "type": "integer"
-    },
-    "inst_name": {
-      "type": "string",
-      "maxLength": 510
-    },
-    "maker_id": {
-      "type": "integer"
-    }
-  }
-}
-
-const instrumentKnownSchema = {
-  "kind": "collectionType",
-  "collectionName": "instruments_known",
-  "info": {
-    "singularName": "instrument-known",
-    "pluralName": "instruments-known",
-    "displayName": "Instrument Known",
-    "description": "Instruments known to be made by a maker"
-  },
-  "options": {
-    "draftAndPublish": false
-  },
-  "pluginOptions": {},
-  "attributes": {
-    "maker": {
-      "type": "relation",
-      "relation": "manyToOne",
-      "target": "api::maker.maker",
-      "inversedBy": "instruments_known"
-    },
-    "inst_code": {
-      "type": "integer"
-    },
-    "inst_name": {
-      "type": "string",
-      "maxLength": 510
-    },
-    "maker_id": {
-      "type": "integer"
-    }
-  }
-}
-
-
 
 // ─── Small presentational helpers ───────────────────────────────────────────
 
@@ -184,7 +117,9 @@ function RelationsSection({ relations }) {
         {relations.map((rel) => {
           const targetMaker = rel.target_maker;
           const targetName = targetMaker
-            ? [targetMaker.first_name, targetMaker.surname].filter(Boolean).join(' ')
+            ? [targetMaker.First_name ?? targetMaker.first_name, targetMaker.Surname ?? targetMaker.surname]
+                .filter(Boolean)
+                .join(' ')
             : null;
 
           return (
@@ -201,7 +136,7 @@ function RelationsSection({ relations }) {
                     </dt>
                     <dd>
                       <Link
-                        href={`/data/maker/detail?id=${targetMaker.documentId}`}
+                        href={`/data/maker/detail?id=${targetMaker.documentId ?? targetMaker.id}`}
                         className="text-sm text-blue-600 hover:underline dark:text-blue-400"
                       >
                         {targetName || `Maker #${targetMaker.id}`}
@@ -239,7 +174,7 @@ function InstrumentsSection({ title, instruments }) {
             {instruments.map((entry) => (
               <tr key={entry.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
                 <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
-                  {entry.inst_name.replace(/,\s*$/, "") ?? '—'}
+                  {entry.inst_name?.replace(/,\s*$/, '') ?? '—'}
                 </td>
               </tr>
             ))}
@@ -271,20 +206,13 @@ export default function MakerDetail() {
       try {
         setIsLoading(true);
         setErrorMessage('');
-        const response = await requests.makers.get(id, {
+        const response = await requests.makersExtended.get(id, {
           populate: {
             addresses: { populate: { town_location: true } },
             memberships: { populate: { guild: true } },
-            relations: {
-              populate: {
-                relation_type: true,
-                relation_type_meta: true,
-                target_maker: true,
-              },
-            },
+            relations: { populate: { relation_type: true, target_maker: true } },
             instruments_advertised: true,
             instruments_known: true,
-            sources: true,
           },
         });
         setMaker(response?.data ?? null);
@@ -299,16 +227,19 @@ export default function MakerDetail() {
   }, [id]);
 
   const fullName = maker
-    ? [maker.first_name, maker.surname].filter(Boolean).join(' ')
+    ? maker.Label ||
+      [maker.First_name, maker.Surname].filter(Boolean).join(' ') ||
+      maker.Organisation_Name ||
+      null
     : null;
 
   const dateLabel = maker
     ? [
         maker.Date1_qual,
-        maker.date_1,
-        (maker.date_1 || maker.Date2_qual) && '–',
+        maker.Date_1,
+        (maker.Date_1 || maker.Date2_qual) && '–',
         maker.Date2_qual,
-        maker.date_2,
+        maker.Date_2,
       ]
         .filter(Boolean)
         .join(' ')
@@ -342,9 +273,10 @@ export default function MakerDetail() {
               <h1 className="text-4xl font-bold text-zinc-900 dark:text-zinc-100">
                 {fullName || 'Unknown Maker'}
               </h1>
-              {maker.Alt_name && (
+              {(maker.Alt_name1 || maker.Alt_name2) && (
                 <p className="text-base text-zinc-500 dark:text-zinc-400">
-                  Also known as: <span className="italic">{maker.Alt_name}</span>
+                  Also known as:{' '}
+                  <span className="italic">{[maker.Alt_name1, maker.Alt_name2].filter(Boolean).join(', ')}</span>
                 </p>
               )}
               {dateLabel && (
@@ -355,10 +287,20 @@ export default function MakerDetail() {
             {/* Core fields */}
             <Section title="Details">
               <dl className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3">
-                <Field label="Advertised trade" value={maker.Adv_trade1} />
-                <Field label="Advertised trade 2" value={maker.Adv_trade2} />
+                <Field label="Maker ID" value={maker.Maker_ID} />
+                <Field label="Maker Type" value={maker.Maker_Type} />
+                <Field label="Actor Type" value={maker.Actor_Type} />
+                <Field label="Organisation" value={maker.Organisation_Name} />
+                <Field label="Title" value={maker.Title} />
+                <Field label="Initials" value={maker.Initials} />
+                <Field label="Surname" value={maker.Surname} />
+                <Field label="First Name" value={maker.First_name} />
+                <Field label="Suffix" value={maker.Suffix} />
+                <Field label="Disambiguation" value={maker.Disambiguation_Numeral} />
+                <Field label="VIAF" value={maker.VIAF_URI} />
+                <Field label="Wikidata" value={maker.Wikidata_URI} />
               </dl>
-              {[maker.misc_info_1, maker.misc_info_2, maker.misc_info_3, maker.misc_info_4]
+              {[maker.Misc_Info]
                 .filter(Boolean)
                 .map((text, i) => (
                   <p key={i} className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">

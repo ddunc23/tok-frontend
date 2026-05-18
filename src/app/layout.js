@@ -28,6 +28,7 @@ import {
   HomeIcon,
   XMarkIcon,
   UserIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline'
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -40,14 +41,24 @@ export default function RootLayout({ children }) {
   const navigation = [
     { name: 'Home', href: '/', icon: HomeIcon },
     { name: 'Instrument Makers', href: '/data/maker', icon: UserIcon },
+    { name: 'Social Graph', href: '/data/graph', icon: UserGroupIcon },
   ]
 
   function classNames(...classes) {
     return classes.filter(Boolean).join(' ')
   }
 
+  const meta = {
+    title: 'Tools of Knowledge',
+    description: 'Explore the SIMON Database of Scientific Instrument Makers',
+  };
+
   return (
     <html lang="en">
+      <head>
+        <title>{meta.title}</title>
+        <meta name="description" content={meta.description} />
+      </head>
       <body className="min-h-screen w-full overflow-x-hidden">
         <div className="min-h-screen">
           <Dialog open={sidebarOpen} onClose={setSidebarOpen} className="relative z-50 lg:hidden">

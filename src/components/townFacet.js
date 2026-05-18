@@ -94,11 +94,12 @@ export default function TownFacet({ selectedIds = [], onChange, nameField = 'tow
         <ul className="max-h-[60vh] overflow-y-auto">
           {towns.map((town) => {
             const id = town.id;
+            const key = town.documentId; 
             const label = String(town[nameField] ?? id);
             const checked = selectedSet.has(id);
 
             return (
-              <li key={id}>
+              <li key={key}>
                 <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800/60">
                   <input
                     type="checkbox"
