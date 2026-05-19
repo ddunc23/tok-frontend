@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import TableDisplay from '@/components/tableDisplay';
@@ -10,7 +10,6 @@ import MakerSearchBox from '@/components/makerSearchBox';
 import SurnameFacet from '@/components/surnameFacet';
 import TownFacet from '@/components/townFacet';
 import { requests } from '@/utils/requests';
-
 
 function Makers() {
   const router = useRouter();
@@ -357,4 +356,10 @@ function Makers() {
   );
 }
 
-export default Makers;
+export default function MakersPage() {
+  return (
+    <Suspense>
+      <Makers />
+    </Suspense>
+  );
+}

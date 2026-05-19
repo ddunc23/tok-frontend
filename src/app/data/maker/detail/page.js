@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { requests } from '@/utils/requests';
 import NetworkVisualisation from '@/components/networkVisualisation';
-
+import { Suspense } from 'react';
 
 
 // ─── Small presentational helpers ───────────────────────────────────────────
@@ -187,7 +187,7 @@ function InstrumentsSection({ title, instruments }) {
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default function MakerDetail() {
+export function MakerDetail() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
 
@@ -329,3 +329,11 @@ export default function MakerDetail() {
   );
 }
 
+
+export default function MakerDetailPage() {
+  return (
+    <Suspense>
+      <MakerDetail />
+    </Suspense>
+  );
+}
