@@ -17,7 +17,7 @@ export default function SocialGraph() {
 
     const fetchGraphData = async () => {
         try {
-            const response = await fetch('http://localhost:1337/api/graph?limit=200');
+            const response = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/graph?limit=200`);
             const data = await response.json();
             setNodes(data.nodes);
             setEdges(data.edges);
