@@ -261,7 +261,7 @@ export function MakerDetail() {
           populate: {
             addresses: { populate: { town_location: true } },
             memberships: { populate: { guild: true } },
-            relations: { populate: { target_maker_extended: true, maker: true } },
+            relations: { populate: { target_maker_extended: true } },
             relation_targets: { populate: { target_maker_extended: true, maker_extended: true } },
             instruments_advertised: true,
             instruments_known: true,
