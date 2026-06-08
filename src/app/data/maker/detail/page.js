@@ -107,24 +107,33 @@ function GuildMembershipsSection({ memberships }) {
   );
 }
 
-function RelationsSection({ relations }) {
-  if (!relations?.length)
+function RelationsSection({ relations, relationTargets }) {
+  const hasRelations = relations?.length > 0;
+  const hasTargets = relationTargets?.length > 0;
+
+  if (!hasRelations && !hasTargets)
     return <Section title="Relations" empty="No relations recorded." />;
 
   return (
     <Section title="Relations">
       <ul className="flex flex-col gap-3">
-        {relations.map((rel) => {
-          const targetMaker = rel.target_maker;
+        {/* Outgoing relations */}
+        {relations?.map((rel) => {
+          const targetMaker = rel.target_maker_extended;
           const targetName = targetMaker
-            ? [targetMaker.First_name ?? targetMaker.first_name, targetMaker.Surname ?? targetMaker.surname]
+            ? [
+                targetMaker.Label ?? targetMaker.label,
+                [targetMaker.First_name ?? targetMaker.first_name, targetMaker.Surname ?? targetMaker.surname]
+                  .filter(Boolean)
+                  .join(' '),
+              ]
                 .filter(Boolean)
-                .join(' ')
+                [0]
             : null;
 
           return (
             <li
-              key={rel.id}
+              key={`rel-${rel.id}`}
               className="rounded border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
             >
               <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
@@ -145,6 +154,48 @@ function RelationsSection({ relations }) {
                   </div>
                 ) : (
                   <Field label="Identified maker" value={rel.assigned_name} />
+                )}
+              </dl>
+            </li>
+          );
+        })}
+        {/* Incoming relations */}
+        {relationTargets?.map((relTarget) => {
+          const sourceMaker = relTarget.maker_extended ?? relTarget.maker;
+          const sourceName = sourceMaker
+            ? [
+                sourceMaker.Label ?? sourceMaker.label,
+                [sourceMaker.First_name ?? sourceMaker.first_name, sourceMaker.Surname ?? sourceMaker.surname]
+                  .filter(Boolean)
+                  .join(' '),
+              ]
+                .filter(Boolean)
+                [0]
+            : null;
+
+          return (
+            <li
+              key={`target-${relTarget.id}`}
+              className="rounded border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+                <Field label="Type" value={relTarget.relation_type?.name ?? relTarget.relation_description} />
+                {sourceMaker ? (
+                  <div className="flex flex-col gap-0.5">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      Related maker
+                    </dt>
+                    <dd>
+                      <Link
+                        href={`/data/maker/detail?id=${sourceMaker.documentId ?? sourceMaker.id}`}
+                        className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        {sourceName || `Maker #${sourceMaker.id}`}
+                      </Link>
+                    </dd>
+                  </div>
+                ) : (
+                  <Field label="Related maker" value={relTarget.assigned_name} />
                 )}
               </dl>
             </li>
@@ -210,7 +261,8 @@ export function MakerDetail() {
           populate: {
             addresses: { populate: { town_location: true } },
             memberships: { populate: { guild: true } },
-            relations: { populate: { relation_type: true, target_maker: true } },
+            relations: { populate: { target_maker_extended: true, maker: true } },
+            relation_targets: { populate: { target_maker_extended: true, maker_extended: true } },
             instruments_advertised: true,
             instruments_known: true,
           },
@@ -311,7 +363,7 @@ export function MakerDetail() {
 
             <AddressesSection addresses={maker.addresses} />
             <GuildMembershipsSection memberships={maker.memberships} />
-            <RelationsSection relations={maker.relations} />
+            <RelationsSection relations={maker.relations} relationTargets={maker.relation_targets} />
 
             <InstrumentsSection title="Instruments Advertised" instruments={maker.instruments_advertised} />
             <InstrumentsSection title="Instruments Known" instruments={maker.instruments_known} />

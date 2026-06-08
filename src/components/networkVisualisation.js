@@ -16,7 +16,7 @@ const GraphCanvas = dynamic(
  *
  * Nodes:
  *   - The focal maker  (type: maker, fill: indigo)
- *   - Related makers   (type: maker, fill: blue)  — via relations[].disambiguated_relation.target_maker
+ *   - Related makers   (type: maker, fill: blue)  — via relations[] and relation_targets[]
  *   - Guilds           (type: guild, fill: amber)  — via memberships[].guild
  *   - Towns            (type: town,  fill: emerald) — via addresses[].town_location
  *   - Instruments      (type: instrument, fill: rose) — via instruments_advertised / instruments_known
@@ -78,9 +78,9 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
       data: { type: 'maker', makerId: focalMakerId },
     });
 
-    // ── Related makers via relations ────────────────────────────────────────
+    // ── Related makers via outgoing relations ───────────────────────────────
     for (const rel of maker.relations ?? []) {
-      const target = rel.target_maker;
+      const target = rel.target_maker_extended ?? rel.target_maker;
       if (!target?.id) continue;
 
       const targetMakerId = getMakerDocumentId(target);
@@ -96,6 +96,26 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
       });
 
       addEdge({ source: focalId, target: targetId, label: edgeLabel });
+    }
+
+    // ── Related makers via incoming relation targets ────────────────────────
+    for (const relTarget of maker.relation_targets ?? []) {
+      const source = relTarget.maker_extended ?? relTarget.maker;
+      if (!source?.id) continue;
+
+      const sourceMakerId = getMakerDocumentId(source);
+      const sourceId = `maker-${sourceMakerId}`;
+      const sourceLabel = getMakerLabel(source);
+      const edgeLabel = relTarget.relation_type?.name ?? relTarget.relation_description ?? 'relation';
+
+      addNode({
+        id: sourceId,
+        label: sourceLabel,
+        fill: '#3b82f6', // blue — related maker
+        data: { type: 'maker', makerId: sourceMakerId },
+      });
+
+      addEdge({ source: sourceId, target: focalId, label: edgeLabel });
     }
 
     // ── Guilds via memberships ───────────────────────────────────────────────
