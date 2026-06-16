@@ -122,7 +122,7 @@ function Makers() {
         const filterClauses = [];
 
         if (surnameQuery !== '') {
-          filterClauses.push({ Surname: { $containsi: surnameQuery } });
+          filterClauses.push({ Label: { $containsi: surnameQuery } });
         }
 
         if (surnameInitial !== '') {
@@ -150,11 +150,11 @@ function Makers() {
         }
 
         if (dateRange.from !== '') {
-          filterClauses.push({ Date_1: { $gte: Number(dateRange.from) } });
+          filterClauses.push({ Date_1: { $gte: dateRange.from } });
         }
 
         if (dateRange.to !== '') {
-          filterClauses.push({ Date_2: { $lte: Number(dateRange.to) } });
+          filterClauses.push({ Date_2: { $lte: dateRange.to } });
         }
 
         const queryParams = {
@@ -202,10 +202,10 @@ function Makers() {
   const columns = useMemo(
     () => [
       { key: 'Maker_ID', header: 'ID' },
-      { key: 'Surname', header: 'Surname' },
-      { key: 'First_name', header: 'First Name' },
-      { key: 'Maker_Type', header: 'Maker Type' },
       { key: 'Label', header: 'Label' },
+      { key: 'Maker_Type', header: 'Maker Type' },
+      { key: 'Date_1', header: 'Date 1' },
+      { key: 'Date_2', header: 'Date 2' },
       {
         key: 'documentId',
         header: 'Record',
@@ -346,9 +346,9 @@ function Makers() {
           </div>
 
           <div className="flex flex-col gap-6">
+            <DateFacet dateRange={dateRange} onChange={handleDateRangeChange} />
             <GuildFacet selectedIds={selectedGuildIds} onChange={handleGuildChange} />
             <TownFacet selectedIds={selectedTownIds} onChange={handleTownChange} />
-            <DateFacet dateRange={dateRange} onChange={handleDateRangeChange} />
           </div>
         </div>
       </main>

@@ -116,92 +116,99 @@ function RelationsSection({ relations, relationTargets }) {
 
   return (
     <Section title="Relations">
-      <ul className="flex flex-col gap-3">
-        {/* Outgoing relations */}
-        {relations?.map((rel) => {
-          const targetMaker = rel.target_maker_extended;
-          const targetName = targetMaker
-            ? [
-                targetMaker.Label ?? targetMaker.label,
-                [targetMaker.First_name ?? targetMaker.first_name, targetMaker.Surname ?? targetMaker.surname]
-                  .filter(Boolean)
-                  .join(' '),
-              ]
-                .filter(Boolean)
-                [0]
-            : null;
+      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-700">
+          <thead className="bg-zinc-100 dark:bg-zinc-900">
+            <tr>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Relation ID
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Direction
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Type
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Related maker
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-700 dark:bg-zinc-950">
+            {relations?.map((rel) => {
+              const targetMaker = rel.target_maker_extended;
+              const targetName = targetMaker
+                ? [
+                    targetMaker.Label ?? targetMaker.label,
+                    [targetMaker.First_name ?? targetMaker.first_name, targetMaker.Surname ?? targetMaker.surname]
+                      .filter(Boolean)
+                      .join(' '),
+                  ]
+                    .filter(Boolean)
+                    [0]
+                : null;
 
-          return (
-            <li
-              key={`rel-${rel.id}`}
-              className="rounded border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-            >
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-                <Field label="Type" value={rel.relation_type?.name ?? rel.relation_description} />
-                {targetMaker ? (
-                  <div className="flex flex-col gap-0.5">
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      Identified maker
-                    </dt>
-                    <dd>
+              return (
+                <tr key={`rel-${rel.id}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
+                  <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">{rel.id ?? '—'}</td>
+                  <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">Outgoing</td>
+                  <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
+                    {rel.relation_type?.name ?? rel.relation_description ?? '—'}
+                  </td>
+                  <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
+                    {targetMaker ? (
                       <Link
                         href={`/data/maker/detail?id=${targetMaker.documentId ?? targetMaker.id}`}
                         className="text-sm text-blue-600 hover:underline dark:text-blue-400"
                       >
                         {targetName || `Maker #${targetMaker.id}`}
                       </Link>
-                    </dd>
-                  </div>
-                ) : (
-                  <Field label="Identified maker" value={rel.assigned_name} />
-                )}
-              </dl>
-            </li>
-          );
-        })}
-        {/* Incoming relations */}
-        {relationTargets?.map((relTarget) => {
-          const sourceMaker = relTarget.maker_extended ?? relTarget.maker;
-          const sourceName = sourceMaker
-            ? [
-                sourceMaker.Label ?? sourceMaker.label,
-                [sourceMaker.First_name ?? sourceMaker.first_name, sourceMaker.Surname ?? sourceMaker.surname]
-                  .filter(Boolean)
-                  .join(' '),
-              ]
-                .filter(Boolean)
-                [0]
-            : null;
+                    ) : (
+                      rel.assigned_name || '—'
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
 
-          return (
-            <li
-              key={`target-${relTarget.id}`}
-              className="rounded border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-            >
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-                <Field label="Type" value={relTarget.relation_type?.name ?? relTarget.relation_description} />
-                {sourceMaker ? (
-                  <div className="flex flex-col gap-0.5">
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      Related maker
-                    </dt>
-                    <dd>
+            {relationTargets?.map((relTarget) => {
+              const sourceMaker = relTarget.maker_extended ?? relTarget.maker;
+              const sourceName = sourceMaker
+                ? [
+                    sourceMaker.Label ?? sourceMaker.label,
+                    [sourceMaker.First_name ?? sourceMaker.first_name, sourceMaker.Surname ?? sourceMaker.surname]
+                      .filter(Boolean)
+                      .join(' '),
+                  ]
+                    .filter(Boolean)
+                    [0]
+                : null;
+
+              return (
+                <tr key={`target-${relTarget.id}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
+                  <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">{relTarget.id ?? '—'}</td>
+                  <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">Incoming</td>
+                  <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
+                    {relTarget.relation_type?.name ?? relTarget.relation_description ?? '—'}
+                  </td>
+                  <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
+                    {sourceMaker ? (
                       <Link
                         href={`/data/maker/detail?id=${sourceMaker.documentId ?? sourceMaker.id}`}
                         className="text-sm text-blue-600 hover:underline dark:text-blue-400"
                       >
                         {sourceName || `Maker #${sourceMaker.id}`}
                       </Link>
-                    </dd>
-                  </div>
-                ) : (
-                  <Field label="Related maker" value={relTarget.assigned_name} />
-                )}
-              </dl>
-            </li>
-          );
-        })}
-      </ul>
+                    ) : (
+                      relTarget.assigned_name || '—'
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </Section>
   );
 }
@@ -262,7 +269,8 @@ export function MakerDetail() {
             addresses: { populate: { town_location: true } },
             memberships: { populate: { guild: true } },
             relations: { populate: { target_maker_extended: true } },
-            relation_targets: { populate: { target_maker_extended: true, maker_extended: true } },
+            relation_targets: { populate: { target_maker_extended: true, maker_extended: true}
+           },
             instruments_advertised: true,
             instruments_known: true,
           },

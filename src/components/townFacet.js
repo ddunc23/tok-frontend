@@ -40,7 +40,14 @@ export default function TownFacet({ selectedIds = [], onChange, nameField = 'tow
           const bName = String(b[nameField] ?? b.id);
           return aName.localeCompare(bName, undefined, { sensitivity: 'base' });
         });
-        setTowns(sorted);
+        
+        const uniqueTowns = sorted.filter((town, index, self) => {
+          const id = town.id;
+          return self.findIndex((t) => t.id === id) === index;
+        });
+
+        setTowns(uniqueTowns);
+
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : 'Error loading town filters.');
       } finally {

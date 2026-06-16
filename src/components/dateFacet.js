@@ -5,7 +5,7 @@ import { useState } from 'react';
 /**
  * DateFacet
  *
- * Renders two year-number inputs that let the user specify an activity range.
+ * Renders two year-only inputs that let the user specify an activity range.
  * The intent is "show makers who were active during this period", so:
  *   - `from` constrains  date_1 >= from  (maker started no earlier than)
  *   - `to`   constrains  date_2 <= to    (maker ended no later than)
@@ -17,13 +17,24 @@ import { useState } from 'react';
  *   onChange   – (range: { from: string, to: string }) => void
  */
 export default function DateFacet({ dateRange = { from: '', to: '' }, onChange }) {
-  const [fromInput, setFromInput] = useState(dateRange.from ?? '');
-  const [toInput, setToInput] = useState(dateRange.to ?? '');
+  const normalizeYear = (value) => {
+    if (!value) return '';
+    const year = String(value).slice(0, 4);
+    return /^\d{4}$/.test(year) ? year : '';
+  };
+
+  const toIsoDate = (year) => {
+    if (!year) return '';
+    return `${year}-01-01`;
+  };
+
+  const [fromInput, setFromInput] = useState(normalizeYear(dateRange.from ?? ''));
+  const [toInput, setToInput] = useState(normalizeYear(dateRange.to ?? ''));
 
   const isActive = fromInput !== '' || toInput !== '';
 
   const commit = (nextFrom, nextTo) => {
-    onChange?.({ from: nextFrom, to: nextTo });
+    onChange?.({ from: toIsoDate(nextFrom), to: toIsoDate(nextTo) });
   };
 
   const handleFromBlur = () => commit(fromInput, toInput);
@@ -70,7 +81,9 @@ export default function DateFacet({ dateRange = { from: '', to: '' }, onChange }
           <label className="text-xs text-zinc-500 dark:text-zinc-400">From year</label>
           <input
             type="number"
-            placeholder="e.g. 1600"
+            min="1000"
+            max="9999"
+            placeholder="1840"
             value={fromInput}
             onChange={(e) => setFromInput(e.target.value)}
             onBlur={handleFromBlur}
@@ -83,7 +96,9 @@ export default function DateFacet({ dateRange = { from: '', to: '' }, onChange }
           <label className="text-xs text-zinc-500 dark:text-zinc-400">To year</label>
           <input
             type="number"
-            placeholder="e.g. 1700"
+            min="1000"
+            max="9999"
+            placeholder="1720"
             value={toInput}
             onChange={(e) => setToInput(e.target.value)}
             onBlur={handleToBlur}
