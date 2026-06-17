@@ -48,9 +48,11 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
     const seenEdgeKeys = new Set();
 
     const addNode = (node) => {
-      if (!seenNodeIds.has(node.id)) {
-        seenNodeIds.add(node.id);
-        nodes.push(node);
+      const nextNode = { draggable: true, ...node };
+
+      if (!seenNodeIds.has(nextNode.id)) {
+        seenNodeIds.add(nextNode.id);
+        nodes.push(nextNode);
       }
     };
 
@@ -205,6 +207,7 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
         edges={edges}
         labelType="all"
         cameraMode="pan"
+        draggable
         onNodeClick={handleNodeClick}
       />
     </div>

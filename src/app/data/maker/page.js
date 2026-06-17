@@ -204,8 +204,24 @@ function Makers() {
       { key: 'Maker_ID', header: 'ID' },
       { key: 'Label', header: 'Label' },
       { key: 'Maker_Type', header: 'Maker Type' },
-      { key: 'Date_1', header: 'Date 1' },
-      { key: 'Date_2', header: 'Date 2' },
+      {
+        key: 'Date_1',
+        header: 'Date 1',
+        render: (value) => {
+          if (!value) return '—';
+          const text = String(value);
+          return text.slice(0, 4);
+        },
+      },
+      {
+        key: 'Date_2',
+        header: 'Date 2',
+        render: (value) => {
+          if (!value) return '—';
+          const text = String(value);
+          return text.slice(0, 4);
+        },
+      },
       {
         key: 'documentId',
         header: 'Record',
