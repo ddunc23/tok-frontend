@@ -6,13 +6,19 @@ import { requests } from '@/utils/requests';
 /**
  * MiniMap
  *
- * Displays all points associated with a specific maker on a small interactive map.
+ * Displays all points associated with one or more makers on a small interactive map.
  * Supports layer switching between modern and historic map layers.
  *
  * Props:
- *   makerDocumentId – the documentId of the maker to display points for
+ *   makerDocumentIds – string | string[]  one or more maker documentIds
  */
-export default function MiniMap({ makerDocumentId }) {
+export default function MiniMap({ makerDocumentIds }) {
+  const ids = Array.isArray(makerDocumentIds)
+    ? makerDocumentIds
+    : makerDocumentIds
+    ? [makerDocumentIds]
+    : [];
+
   const mapContainer = useRef(null);
   const map = useRef(null);
   const popupRef = useRef(null);
@@ -22,7 +28,7 @@ export default function MiniMap({ makerDocumentId }) {
   const [points, setPoints] = useState([]);
   const [currentLayer, setCurrentLayer] = useState('positron');
 
-  if (!makerDocumentId) {
+  if (ids.length === 0) {
     return (
       <div className="w-full h-64 rounded border border-zinc-300 flex items-center justify-center bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900">
         <p className="text-sm text-zinc-500">No maker specified</p>
@@ -73,9 +79,7 @@ export default function MiniMap({ makerDocumentId }) {
                 id: 'historic-london-1893-layer',
                 type: 'raster',
                 source: 'historic-london-1893',
-                paint: {
-                  'raster-opacity': 1,
-                },
+                paint: { 'raster-opacity': 1 },
               },
               'points-layer'
             );
@@ -164,67 +168,70 @@ export default function MiniMap({ makerDocumentId }) {
     };
   }, []);
 
-  // Fetch and display points for this maker
+  // Fetch and display points for all makers
   useEffect(() => {
-    if (!isMapReady || !map.current || !makerDocumentId) return;
+    if (!isMapReady || !map.current || ids.length === 0) return;
 
-    const fetchPointsForMaker = async () => {
+    // Palette for colouring points by maker
+    const COLOURS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];
+
+    const fetchPointsForMakers = async () => {
       try {
         setIsLoading(true);
-        
-        // Fetch the maker to get their associated points
-        const makerResponse = await requests.makersExtended.get(makerDocumentId, {
-          populate: 'Points',
+
+        // Fetch all makers in parallel
+        const responses = await Promise.all(
+          ids.map((id) => requests.makersExtended.get(id, { populate: 'Points' }))
+        );
+
+        const allFeatures = [];
+
+        responses.forEach((response, index) => {
+          const maker = response?.data;
+          const associatedPoints = maker?.Points ?? [];
+          const colour = COLOURS[index % COLOURS.length];
+          const makerName =
+            maker?.Label ||
+            [maker?.First_name, maker?.Surname].filter(Boolean).join(' ') ||
+            maker?.Organisation_Name ||
+            `Maker #${maker?.id}`;
+
+          associatedPoints
+            .filter((p) => p.Latitude && p.Longitude)
+            .forEach((point) => {
+              allFeatures.push({
+                type: 'Feature',
+                geometry: {
+                  type: 'Point',
+                  coordinates: [point.Longitude, point.Latitude],
+                },
+                properties: {
+                  id: point.id,
+                  documentId: point.documentId,
+                  Point_ID: point.Point_ID,
+                  colour,
+                  makerName,
+                },
+              });
+            });
         });
 
-        const maker = makerResponse?.data;
-        const associatedPoints = maker?.Points ?? [];
-        setPoints(associatedPoints);
+        setPoints(allFeatures);
 
-        if (associatedPoints.length === 0) {
-          setErrorMessage('No locations available for this maker.');
+        if (allFeatures.length === 0) {
+          setErrorMessage('No locations available.');
           setIsLoading(false);
           return;
         }
 
-        // Convert points to GeoJSON FeatureCollection
-        const features = associatedPoints
-          .filter((p) => p.Latitude && p.Longitude)
-          .map((point) => ({
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: [point.Longitude, point.Latitude],
-            },
-            properties: {
-              id: point.id,
-              documentId: point.documentId,
-              Point_ID: point.Point_ID,
-            },
-          }));
+        const geojson = { type: 'FeatureCollection', features: allFeatures };
 
-        if (features.length === 0) {
-          setErrorMessage('No valid locations found.');
-          setIsLoading(false);
-          return;
-        }
-
-        const geojson = {
-          type: 'FeatureCollection',
-          features,
-        };
-
-        // Add GeoJSON source
         if (!map.current.getSource('points')) {
-          map.current.addSource('points', {
-            type: 'geojson',
-            data: geojson,
-          });
+          map.current.addSource('points', { type: 'geojson', data: geojson });
         } else {
           map.current.getSource('points').setData(geojson);
         }
 
-        // Add circle layer with zoom-based scaling
         if (!map.current.getLayer('points-layer')) {
           map.current.addLayer({
             id: 'points-layer',
@@ -232,41 +239,49 @@ export default function MiniMap({ makerDocumentId }) {
             source: 'points',
             paint: {
               'circle-radius': [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                0, 2,
-                10, 4,
-                15, 8,
+                'interpolate', ['linear'], ['zoom'],
+                0, 2, 10, 4, 15, 8,
               ],
-              'circle-color': '#2563eb',
+              'circle-color': ['get', 'colour'],
               'circle-opacity': 0.8,
             },
           });
         }
 
-        // Add hover effect
+        if (!map.current.getLayer('points-labels-layer')) {
+          map.current.addLayer({
+            id: 'points-labels-layer',
+            type: 'symbol',
+            source: 'points',
+            layout: {
+              'text-field': ['get', 'makerName'],
+              'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+              'text-size': 11,
+              'text-offset': [0, 1.2],
+              'text-anchor': 'top',
+              'text-allow-overlap': false,
+            },
+            paint: {
+              'text-color': ['get', 'colour'],
+              'text-halo-color': '#ffffff',
+              'text-halo-width': 1.5,
+            },
+          });
+        }
+
         map.current.on('mouseenter', 'points-layer', () => {
           map.current.getCanvas().style.cursor = 'pointer';
         });
-
         map.current.on('mouseleave', 'points-layer', () => {
           map.current.getCanvas().style.cursor = '';
         });
 
         // Fit bounds to all points
         const maplibregl = (await import('maplibre-gl')).default;
-        const bounds = features.reduce(
-          (b, feature) => {
-            const [lng, lat] = feature.geometry.coordinates;
-            return b.extend([lng, lat]);
-          },
-          new maplibregl.LngLatBounds(
-            features[0].geometry.coordinates,
-            features[0].geometry.coordinates
-          )
+        const bounds = allFeatures.reduce(
+          (b, feature) => b.extend(feature.geometry.coordinates),
+          new maplibregl.LngLatBounds(allFeatures[0].geometry.coordinates, allFeatures[0].geometry.coordinates)
         );
-
         map.current.fitBounds(bounds, { padding: 40 });
 
         setErrorMessage('');
@@ -277,8 +292,8 @@ export default function MiniMap({ makerDocumentId }) {
       }
     };
 
-    fetchPointsForMaker();
-  }, [isMapReady, makerDocumentId]);
+    fetchPointsForMakers();
+  }, [isMapReady, ids.join(',')]);
 
   return (
     <div className="w-full flex flex-col gap-2">
@@ -334,7 +349,7 @@ export default function MiniMap({ makerDocumentId }) {
       </div>
       <div
         ref={mapContainer}
-        className="w-full h-64 relative overflow-hidden rounded border border-zinc-300 dark:border-zinc-600"
+        className="w-full h-[480px] relative overflow-hidden rounded border border-zinc-300 dark:border-zinc-600"
       />
     </div>
   );

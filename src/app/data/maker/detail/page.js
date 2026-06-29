@@ -267,6 +267,50 @@ function InstrumentsSection({ title, instruments }) {
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
+function NetworkSection({ maker }) {
+  const [activeTab, setActiveTab] = useState('network');
+
+  const relatedMakerIds = [
+    ...(maker.relations ?? []).map((r) => r.target_maker_extended?.documentId).filter(Boolean),
+    ...(maker.relation_targets ?? []).map((r) => (r.maker_extended ?? r.maker)?.documentId).filter(Boolean),
+  ];
+
+  const allMakerIds = [maker.documentId, ...relatedMakerIds].filter(Boolean);
+
+  const tabs = [
+    { id: 'network', label: 'Network Graph' },
+    { id: 'map', label: 'Map' },
+  ];
+
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex items-center justify-between border-b border-zinc-200 pb-1 dark:border-zinc-700">
+        <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-100">Network</h2>
+        <div className="flex gap-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                  : 'border border-zinc-300 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {activeTab === 'network' && <NetworkVisualisation maker={maker} height="480px" />}
+      {activeTab === 'map' && <MiniMap makerDocumentIds={allMakerIds} />}
+    </section>
+  );
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────
+
 export function MakerDetail() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
@@ -435,16 +479,14 @@ export function MakerDetail() {
 
             <AddressesSection addresses={maker.addresses} />
             {maker.Points && maker.Points.length > 0 && (
-              <MiniMap makerDocumentId={maker.documentId} />
+              <MiniMap makerDocumentIds={maker.documentId} />
             )}
             <GuildMembershipsSection memberships={maker.memberships} />
             <RelationsSection relations={maker.relations} relationTargets={maker.relation_targets} />
 
             <InstrumentsSection title="Instruments Advertised" instruments={maker.instruments_advertised} />
             <InstrumentsSection title="Instruments Known" instruments={maker.instruments_known} />
-            <Section title="Network">
-              <NetworkVisualisation maker={maker} height="480px" />
-            </Section>
+            <NetworkSection maker={maker} />
           </>
         )}
 

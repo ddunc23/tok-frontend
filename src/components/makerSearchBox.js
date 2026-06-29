@@ -20,7 +20,7 @@ export default function MakerSearchBox({
   value = '',
   onChange,
   debounceMs = 350,
-  placeholder = 'Search by surname…',
+  placeholder = 'Search by name…',
 }) {
   const [inputValue, setInputValue] = useState(value);
   const timerRef = useRef(null);
