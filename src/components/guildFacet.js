@@ -19,16 +19,15 @@ export default function GuildFacet({ selectedIds = [], onChange, nameField = 'na
 								id: { $notNull: true },
 							},
 						},
+							populate: 'memberships',
 					},
 					{ pageSize: 100 }
 				);
-
 				const sorted = (response?.data ?? []).sort((a, b) => {
 					const aName = String(a[nameField] ?? a.id);
 					const bName = String(b[nameField] ?? b.id);
 					return aName.localeCompare(bName, undefined, { sensitivity: 'base' });
 				});
-
 				setGuilds(sorted);
 			} catch (error) {
 				setErrorMessage(error instanceof Error ? error.message : 'Error loading guild filters.');
@@ -86,14 +85,19 @@ export default function GuildFacet({ selectedIds = [], onChange, nameField = 'na
 
 						return (
 							<li key={id}>
-								<label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800/60">
-									<input
-										type="checkbox"
-										checked={checked}
-										onChange={() => handleToggle(id)}
-										className="h-4 w-4 rounded border-zinc-400 accent-zinc-700 dark:accent-zinc-300"
-									/>
-									{label}
+								<label className="flex cursor-pointer items-center justify-between gap-2 rounded px-1 py-1 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800/60">
+									<span className="flex items-center gap-2">
+										<input
+											type="checkbox"
+											checked={checked}
+											onChange={() => handleToggle(id)}
+											className="h-4 w-4 rounded border-zinc-400 accent-zinc-700 dark:accent-zinc-300"
+										/>
+										{label}
+									</span>
+									<span className="ml-auto flex-shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+										({guild.memberships?.length ?? 0})
+									</span>
 								</label>
 							</li>
 						);

@@ -29,6 +29,7 @@ import {
   XMarkIcon,
   UserIcon,
   UserGroupIcon,
+  MapIcon
 } from '@heroicons/react/24/outline'
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -42,6 +43,7 @@ export default function RootLayout({ children }) {
     { name: 'Home', href: '/', icon: HomeIcon },
     { name: 'Instrument Makers', href: '/data/maker', icon: UserIcon },
     { name: 'Social Graph', href: '/data/graph', icon: UserGroupIcon },
+    { name: 'Map', href: '/data/map', icon: MapIcon },
   ]
 
   function classNames(...classes) {

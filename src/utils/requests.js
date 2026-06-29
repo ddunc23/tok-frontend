@@ -126,6 +126,7 @@ export const requests = {
 	makers: createCollectionRequests('makers'),
     makersExtended: createCollectionRequests('makers-extended'),
 	memberships: createCollectionRequests('memberships'),
+	points: createCollectionRequests('points'),
 	relationMetas: createCollectionRequests('relation-metas'),
 	relations: createCollectionRequests('relations'),
 	relationTypeMetas: createCollectionRequests('relation-type-metas'),

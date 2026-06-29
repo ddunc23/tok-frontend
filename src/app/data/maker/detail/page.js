@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { requests } from '@/utils/requests';
 import NetworkVisualisation from '@/components/networkVisualisation';
+import MiniMap from '@/components/miniMap';
 import { Suspense } from 'react';
 
 
@@ -294,6 +295,7 @@ export function MakerDetail() {
            },
             instruments_advertised: true,
             instruments_known: true,
+            Points: true,
           },
         });
         setMaker(response?.data ?? null);
@@ -432,6 +434,9 @@ export function MakerDetail() {
             )}
 
             <AddressesSection addresses={maker.addresses} />
+            {maker.Points && maker.Points.length > 0 && (
+              <MiniMap makerDocumentId={maker.documentId} />
+            )}
             <GuildMembershipsSection memberships={maker.memberships} />
             <RelationsSection relations={maker.relations} relationTargets={maker.relation_targets} />
 
