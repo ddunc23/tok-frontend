@@ -16,7 +16,7 @@ import { requests } from '@/utils/requests';
  *   nameField    – string     field on the town-location object that holds the
  *                             display name (default: "name")
  */
-export default function TownFacet({ selectedIds = [], onChange, nameField = 'town' }) {
+export default function TownFacet({ selectedIds = [], onChange, nameField = 'town', counts = {} }) {
   const [towns, setTowns] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -100,26 +100,32 @@ export default function TownFacet({ selectedIds = [], onChange, nameField = 'tow
         <p className="text-xs text-zinc-500 dark:text-zinc-400">No towns available.</p>
       ) : (
         <ul className="max-h-[60vh] overflow-y-auto">
-          {towns.map((town) => {
-            const id = town.id;
-            const key = town.documentId; 
-            const label = String(town[nameField] ?? id);
-            const checked = selectedSet.has(id);
+          {towns
+            .filter((town) => {
+              const id = town.id;
+              return counts[id] !== undefined && counts[id] > 0;
+            })
+            .map((town) => {
+              const id = town.id;
+              const key = town.documentId; 
+              const label = String(town[nameField] ?? id);
+              const checked = selectedSet.has(id);
+              const count = counts[id] ?? 0;
 
-            return (
-              <li key={key}>
-                <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-1 py-1 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800/60">
-                  <span className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => handleToggle(id)}
-                      className="h-4 w-4 rounded border-zinc-400 accent-zinc-700 dark:accent-zinc-300"
-                    />
-                    {label}
-                  </span>
-                  <span className="ml-auto flex-shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
-                    ({town.addresses?.length ?? 0})
+              return (
+                <li key={key}>
+                  <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-1 py-1 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800/60">
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => handleToggle(id)}
+                        className="h-4 w-4 rounded border-zinc-400 accent-zinc-700 dark:accent-zinc-300"
+                      />
+                      {label}
+                    </span>
+                    <span className="ml-auto flex-shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+                      ({count})
                   </span>
                 </label>
               </li>

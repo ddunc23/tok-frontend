@@ -37,6 +37,9 @@ function Makers() {
     total: 0,
   });
 
+  const [guildCounts, setGuildCounts] = useState({});
+  const [townCounts, setTownCounts] = useState({});
+
   useEffect(() => {
     const q = searchParams.get('q') ?? '';
     const initial = (searchParams.get('initial') ?? '').toUpperCase();
@@ -176,6 +179,9 @@ function Makers() {
             total: 0,
           }
         );
+
+        // Fetch facet counts for all filters except each facet
+        await fetchFacetCounts(filterClauses);
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : 'Error fetching makers.');
       } finally {
@@ -194,6 +200,29 @@ function Makers() {
     surnameQuery,
     isHydratedFromQuery,
   ]);
+
+  const fetchFacetCounts = async (allFilterClauses) => {
+    try {
+      // Build filter query for API
+      const filterQuery = allFilterClauses.length > 0
+        ? JSON.stringify({ $and: allFilterClauses })
+        : JSON.stringify({});
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337'}/api/maker-extendeds/facet-counts?filters=${encodeURIComponent(filterQuery)}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch facet counts: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setGuildCounts(data.guilds || {});
+      setTownCounts(data.towns || {});
+    } catch (error) {
+      console.error('Error fetching facet counts:', error);
+    }
+  };
 
   useEffect(() => {
     setPageInput(String(pagination.page || 1));
@@ -363,8 +392,8 @@ function Makers() {
 
           <div className="flex flex-col gap-6">
             <DateFacet dateRange={dateRange} onChange={handleDateRangeChange} />
-            <GuildFacet selectedIds={selectedGuildIds} onChange={handleGuildChange} />
-            <TownFacet selectedIds={selectedTownIds} onChange={handleTownChange} />
+            <GuildFacet selectedIds={selectedGuildIds} onChange={handleGuildChange} counts={guildCounts} />
+            <TownFacet selectedIds={selectedTownIds} onChange={handleTownChange} counts={townCounts} />
           </div>
         </div>
       </main>
