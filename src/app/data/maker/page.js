@@ -180,8 +180,8 @@ function Makers() {
           }
         );
 
-        // Fetch facet counts for all filters except each facet
-        await fetchFacetCounts(filterClauses);
+        // Fetch facet counts in parallel (don't await - let makers display immediately)
+        fetchFacetCounts(filterClauses);
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : 'Error fetching makers.');
       } finally {

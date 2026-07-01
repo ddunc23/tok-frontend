@@ -57,6 +57,8 @@ function AddressesSection({ addresses }) {
     const street2 = (addr.street_2 ?? '').replace(/,\s*$/, '').trim().toLowerCase();
     const townKey = String(town?.id ?? town?.town ?? town?.name ?? '').trim().toLowerCase();
     const addressKey = `${street1}|${street2}|${townKey}`;
+    const date_1 = addr.date_1 ? String(addr.date_1).slice(0, 4) : '';
+    const date_2 = addr.date_2 ? String(addr.date_2).slice(0, 4) : '';
 
     if (seenAddressKeys.has(addressKey)) continue;
 
@@ -79,6 +81,12 @@ function AddressesSection({ addresses }) {
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                 Town
               </th>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Date 1
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Date 2
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-700 dark:bg-zinc-950">
@@ -94,6 +102,12 @@ function AddressesSection({ addresses }) {
                   </td>
                   <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
                     {town ? (town.town ?? town.name ?? town.id) : '—'}
+                  </td>
+                  <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
+                    {addr.date_1 || '—'}
+                  </td>
+                  <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
+                    {addr.date_2 || '—'}
                   </td>
                 </tr>
               );
@@ -265,6 +279,54 @@ function InstrumentsSection({ title, instruments }) {
   );
 }
 
+function SourcesSection({ sources }) {
+  if (!sources?.length)
+    return <Section title="Sources" empty="No sources recorded." />;
+
+  return (
+    <Section title="Sources">
+      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-700">
+          <thead className="bg-zinc-100 dark:bg-zinc-900">
+            <tr>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Source Key
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Manuscripts
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Directories
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Other
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-700 dark:bg-zinc-950">
+            {sources.map((source) => (
+              <tr key={source.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
+                <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
+                  {source.sources_key ?? '—'}
+                </td>
+                <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
+                  {source.manuscripts ?? '—'}
+                </td>
+                <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
+                  {source.directories ?? '—'}
+                </td>
+                <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
+                  {source.other ?? '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Section>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 function NetworkSection({ maker }) {
@@ -340,6 +402,7 @@ export function MakerDetail() {
             instruments_advertised: true,
             instruments_known: true,
             Points: true,
+            sources: true,
           },
         });
         setMaker(response?.data ?? null);
@@ -466,6 +529,7 @@ export function MakerDetail() {
                 <Field label="Death Date Notes" value={maker.Death_Date_Notes} />
                 <Field label="Date 1" value={formatYear(maker.Date_1)} />
                 <Field label="Date 2" value={formatYear(maker.Date_2)} />
+                <Field label="Miscellaneous Information" value={maker.Misc_Info} />
               </dl>
             </Section>
 
@@ -483,6 +547,7 @@ export function MakerDetail() {
             )}
             <GuildMembershipsSection memberships={maker.memberships} />
             <RelationsSection relations={maker.relations} relationTargets={maker.relation_targets} />
+            <SourcesSection sources={maker.sources} />
 
             <InstrumentsSection title="Instruments Advertised" instruments={maker.instruments_advertised} />
             <InstrumentsSection title="Instruments Known" instruments={maker.instruments_known} />
