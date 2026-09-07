@@ -69,13 +69,47 @@ function getPaginationMeta(response) {
 	return response?.meta?.pagination || { page: 1, pageSize: 0, pageCount: 1, total: 0 };
 }
 
-function createCollectionRequests(endpoint) {
+function mergeRequestParams(defaultParams = {}, requestParams = {}) {
+	const merged = {
+		...defaultParams,
+		...requestParams,
+	};
+
+	if (defaultParams.populate !== undefined || requestParams.populate !== undefined) {
+		const defaultPopulate = defaultParams.populate;
+		const requestPopulate = requestParams.populate;
+
+		if (Array.isArray(defaultPopulate) && Array.isArray(requestPopulate)) {
+			merged.populate = [...new Set([...defaultPopulate, ...requestPopulate])];
+		} else if (
+			typeof defaultPopulate === 'object' &&
+			defaultPopulate !== null &&
+			typeof requestPopulate === 'object' &&
+			requestPopulate !== null &&
+			!Array.isArray(defaultPopulate) &&
+			!Array.isArray(requestPopulate)
+		) {
+			merged.populate = {
+				...defaultPopulate,
+				...requestPopulate,
+			};
+		} else {
+			merged.populate = requestPopulate ?? defaultPopulate;
+		}
+	}
+
+	return merged;
+}
+
+function createCollectionRequests(endpoint, defaultParams = {}) {
 	const basePath = `/api/${endpoint}`;
 
 	return {
-		list: (params) => strapiFetch(basePath, { params }),
+		list: (params) => strapiFetch(basePath, { params: mergeRequestParams(defaultParams, params || {}) }),
 		listPage: (params, paginationOptions) =>
-			strapiFetch(basePath, { params: withPagination(params, paginationOptions) }),
+			strapiFetch(basePath, {
+				params: withPagination(mergeRequestParams(defaultParams, params || {}), paginationOptions),
+			}),
 		listAll: async (params, { pageSize = 100, withCount = true } = {}) => {
 			let currentPage = 1;
 			let pageCount = 1;
@@ -84,7 +118,7 @@ function createCollectionRequests(endpoint) {
 
 			do {
 				lastResponse = await strapiFetch(basePath, {
-					params: withPagination(params, {
+					params: withPagination(mergeRequestParams(defaultParams, params || {}), {
 						page: currentPage,
 						pageSize,
 						withCount,
@@ -110,12 +144,27 @@ function createCollectionRequests(endpoint) {
 				},
 			};
 		},
-		get: (id, params) => strapiFetch(`${basePath}/${id}`, { params }),
+		get: (id, params) =>
+			strapiFetch(`${basePath}/${id}`, { params: mergeRequestParams(defaultParams, params || {}) }),
 		create: (data) => strapiFetch(basePath, { method: 'POST', data }),
 		update: (id, data) => strapiFetch(`${basePath}/${id}`, { method: 'PUT', data }),
 		delete: (id) => strapiFetch(`${basePath}/${id}`, { method: 'DELETE' }),
 	};
 }
+
+const makerExtendedDefaultParams = {
+	populate: {
+		term_associations: {
+			populate: {
+				term: {
+					populate: {
+						vocabulary: true,
+					},
+				},
+			},
+		},
+	},
+};
 
 export const requests = {
 	addresses: createCollectionRequests('addresses'),
@@ -124,7 +173,7 @@ export const requests = {
 	instrumentsAdvertised: createCollectionRequests('instruments-advertised'),
 	instrumentsKnown: createCollectionRequests('instruments-known'),
 	makers: createCollectionRequests('makers'),
-    makersExtended: createCollectionRequests('makers-extended'),
+	makersExtended: createCollectionRequests('makers-extended', makerExtendedDefaultParams),
 	memberships: createCollectionRequests('memberships'),
 	points: createCollectionRequests('points'),
 	relationMetas: createCollectionRequests('relation-metas'),

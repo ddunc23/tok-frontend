@@ -20,7 +20,7 @@ const GraphCanvas = dynamic(
  *   - Related makers   (type: maker, fill: blue)  — via relations[] and relation_targets[]
  *   - Guilds           (type: guild, fill: amber)  — via memberships[].guild
  *   - Towns            (type: town,  fill: emerald) — via addresses[].town_location
- *   - Instruments      (type: instrument, fill: rose) — via instruments_advertised / instruments_known
+ *   - Instruments      (type: instrument, fill: rose) — via term_associations (or legacy instrument fields)
  *
  * Features:
  *   - Clicking a related-maker node navigates to their detail page.
@@ -46,6 +46,41 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
       .join(' ') ||
     item?.Organisation_Name ||
     `Maker #${item?.id ?? 'unknown'}`;
+
+  const getTermAssociationInstruments = (makerData) => {
+    const grouped = {
+      ADVERTISED: [],
+      KNOWN: [],
+    };
+
+    const seenByType = {
+      ADVERTISED: new Set(),
+      KNOWN: new Set(),
+    };
+
+    for (const association of makerData?.term_associations ?? []) {
+      const type = association?.association_type;
+      if (type !== 'ADVERTISED' && type !== 'KNOWN') continue;
+
+      const term = association?.term;
+      const rawLabel = term?.preferred_label ?? term?.name ?? association?.evidence_label;
+      if (!rawLabel) continue;
+
+      const label = String(rawLabel).replace(/,\s*$/, '').trim();
+      if (!label) continue;
+
+      const key = String(term?.id ?? label).toLowerCase();
+      if (seenByType[type].has(key)) continue;
+      seenByType[type].add(key);
+
+      grouped[type].push({
+        id: term?.id ?? association?.id,
+        label,
+      });
+    }
+
+    return grouped;
+  };
 
   const handleExpandGraph = async () => {
     if (!maker) return;
@@ -259,13 +294,14 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
       addEdge({ source: focalId, target: townId, label: 'located in' });
     }
 
-    // ── Instruments via advertised / known relations ─────────────────────────
+    // ── Instruments via term associations (or legacy fields) ─────────────────
     const addInstrumentNodeAndEdge = (instrument, relationLabel) => {
       if (!instrument) return;
 
-      const instrumentKey = instrument.id ?? `${instrument.inst_name ?? 'unknown'}-${instrument.inst_code ?? ''}`;
+      const instrumentLabelText = instrument.label ?? instrument.inst_name;
+      const instrumentKey = instrument.id ?? `${instrumentLabelText ?? 'unknown'}-${instrument.inst_code ?? ''}`;
       const instrumentId = `instrument-${instrumentKey}`;
-      const instrumentLabel = instrument.inst_name ?? `Instrument #${instrumentKey}`;
+      const instrumentLabel = instrumentLabelText ?? `Instrument #${instrumentKey}`;
 
       addNode({
         id: instrumentId,
@@ -277,11 +313,20 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
       addEdge({ source: focalId, target: instrumentId, label: relationLabel });
     };
 
-    for (const instrument of maker.instruments_advertised ?? []) {
+    const groupedInstruments = getTermAssociationInstruments(maker);
+
+    const advertisedInstruments = groupedInstruments.ADVERTISED.length
+      ? groupedInstruments.ADVERTISED
+      : (maker.instruments_advertised ?? []);
+    const knownInstruments = groupedInstruments.KNOWN.length
+      ? groupedInstruments.KNOWN
+      : (maker.instruments_known ?? []);
+
+    for (const instrument of advertisedInstruments) {
       addInstrumentNodeAndEdge(instrument, 'advertised');
     }
 
-    for (const instrument of maker.instruments_known ?? []) {
+    for (const instrument of knownInstruments) {
       addInstrumentNodeAndEdge(instrument, 'known for');
     }
 

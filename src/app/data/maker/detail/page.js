@@ -266,9 +266,9 @@ function InstrumentsSection({ title, instruments }) {
           </thead>
           <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-700 dark:bg-zinc-950">
             {instruments.map((entry) => (
-              <tr key={entry.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
+              <tr key={entry.id ?? `${title}-${entry.label}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
                 <td className="px-4 py-2 text-zinc-800 dark:text-zinc-100">
-                  {entry.inst_name?.replace(/,\s*$/, '') ?? '—'}
+                  {entry.label ?? entry.inst_name?.replace(/,\s*$/, '') ?? '—'}
                 </td>
               </tr>
             ))}
@@ -371,6 +371,31 @@ function NetworkSection({ maker }) {
   );
 }
 
+function getInstrumentTermsByType(maker, associationType) {
+  const associations = maker?.term_associations ?? [];
+  const filtered = associations.filter((association) => association?.association_type === associationType);
+  const seen = new Set();
+  const results = [];
+
+  for (const association of filtered) {
+    const term = association?.term;
+    const label = term?.preferred_label ?? term?.name ?? association?.evidence_label ?? null;
+    if (!label) continue;
+
+    const normalized = String(label).replace(/,\s*$/, '').trim();
+    const key = String(term?.id ?? normalized).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    results.push({
+      id: term?.id ?? association?.id,
+      label: normalized,
+    });
+  }
+
+  return results;
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export function MakerDetail() {
@@ -446,6 +471,16 @@ export function MakerDetail() {
         .filter(Boolean)
         .join(' ')
     : null;
+
+  const advertisedInstrumentTerms = getInstrumentTermsByType(maker, 'ADVERTISED');
+  const knownInstrumentTerms = getInstrumentTermsByType(maker, 'KNOWN');
+
+  const advertisedInstruments = advertisedInstrumentTerms.length
+    ? advertisedInstrumentTerms
+    : (maker?.instruments_advertised ?? []);
+  const knownInstruments = knownInstrumentTerms.length
+    ? knownInstrumentTerms
+    : (maker?.instruments_known ?? []);
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-zinc-50 font-sans dark:bg-black">
@@ -533,14 +568,6 @@ export function MakerDetail() {
               </dl>
             </Section>
 
-            {maker.Original_Data && (
-              <Section title="Original SIMON record">
-                <div className="rounded border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
-                  <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{maker.Original_Data}</p>
-                </div>
-              </Section>
-            )}
-
             <AddressesSection addresses={maker.addresses} />
             {maker.Points && maker.Points.length > 0 && (
               <MiniMap makerDocumentIds={maker.documentId} />
@@ -549,9 +576,17 @@ export function MakerDetail() {
             <RelationsSection relations={maker.relations} relationTargets={maker.relation_targets} />
             <SourcesSection sources={maker.sources} />
 
-            <InstrumentsSection title="Instruments Advertised" instruments={maker.instruments_advertised} />
-            <InstrumentsSection title="Instruments Known" instruments={maker.instruments_known} />
+            <InstrumentsSection title="Instruments Advertised" instruments={advertisedInstruments} />
+            <InstrumentsSection title="Instruments Known" instruments={knownInstruments} />
             <NetworkSection maker={maker} />
+
+            {maker.Original_Data && (
+              <Section title="Original SIMON record">
+                <div className="rounded border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
+                  <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{maker.Original_Data}</p>
+                </div>
+              </Section>
+            )}
           </>
         )}
 
