@@ -7,6 +7,7 @@ import TableDisplay from '@/components/tableDisplay';
 import DateFacet from '@/components/dateFacet';
 import GuildFacet from '@/components/guildFacet';
 import InstrumentFacet from '@/components/instrumentFacet';
+import MakerResultsNetwork from '@/components/makerResultsNetwork';
 import MakerSearchBox from '@/components/makerSearchBox';
 import SurnameFacet from '@/components/surnameFacet';
 import TownFacet from '@/components/townFacet';
@@ -20,6 +21,7 @@ function Makers() {
   const [makers, setMakers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [activeTab, setActiveTab] = useState('list');
 
   const [selectedGuildIds, setSelectedGuildIds] = useState([]);
   const [selectedTownIds, setSelectedTownIds] = useState([]);
@@ -211,6 +213,12 @@ function Makers() {
         const queryParams = {
           ...(filterClauses.length > 0 ? { filters: { $and: filterClauses } } : {}),
           sort: ['Surname:asc', 'First_name:asc', 'Label:asc'],
+          populate: {
+            addresses: { populate: { town_location: true } },
+            memberships: { populate: { guild: true } },
+            relations: { populate: { target_maker_extended: true, relation_type: true } },
+            relation_targets: { populate: { maker_extended: true, relation_type: true } },
+          },
         };
 
         const response = await requests.makersExtended.listPage(queryParams, {
@@ -377,6 +385,31 @@ function Makers() {
 
         <div className="flex gap-8">
           <div className="flex flex-1 flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex gap-1">
+                {[
+                  { id: 'list', label: 'List' },
+                  { id: 'network', label: 'Network' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                      activeTab === tab.id
+                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                        : 'border border-zinc-300 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Network reflects the currently loaded result set on this page.
+              </p>
+            </div>
+
             <MakerSearchBox value={surnameQuery} onChange={handleSurnameChange} />
             <SurnameFacet value={surnameInitial} onChange={handleSurnameInitialChange} />
 
@@ -388,6 +421,8 @@ function Makers() {
 
             {isLoading ? (
               <p className="text-zinc-600 dark:text-zinc-300">Loading makers…</p>
+            ) : activeTab === 'network' ? (
+              <MakerResultsNetwork makers={makers} />
             ) : (
               <>
                 <TableDisplay

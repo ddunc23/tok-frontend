@@ -22,6 +22,28 @@ function Field({ label, value }) {
   );
 }
 
+function LinkField({ label, href, text }) {
+  if (!href) return null;
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        {label}
+      </dt>
+      <dd>
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+        >
+          {text ?? href}
+        </a>
+      </dd>
+    </div>
+  );
+}
+
 function Section({ title, children, empty }) {
   return (
     <section className="flex flex-col gap-4">
@@ -40,6 +62,97 @@ function Section({ title, children, empty }) {
 function formatYear(value) {
   if (value == null || value === '') return '';
   return String(value).slice(0, 4);
+}
+
+function extractWikidataEntityId(value) {
+  if (!value) return null;
+  const match = String(value).match(/\b(Q\d+)\b/i);
+  return match ? match[1].toUpperCase() : null;
+}
+
+function getFirstClaimString(entity, propertyId) {
+  const claims = entity?.claims?.[propertyId];
+  if (!Array.isArray(claims) || claims.length === 0) return null;
+
+  const value = claims[0]?.mainsnak?.datavalue?.value;
+  if (typeof value === 'string') return value;
+  return null;
+}
+
+function buildWikimediaImageUrl(fileName, width = 640) {
+  if (!fileName) return null;
+  const normalized = String(fileName).trim();
+  if (!normalized) return null;
+  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(normalized)}?width=${width}`;
+}
+
+function BiographySection({ biography, isLoading }) {
+  if (isLoading) {
+    return (
+      <Section title="Biography">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading biography…</p>
+      </Section>
+    );
+  }
+
+  if (!biography) return null;
+
+  return (
+    <Section title="Biography (from Wikipedia)">
+      <div className="flex flex-col gap-4 rounded border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="overflow-hidden rounded border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
+          {biography.imageUrl ? (
+            <img
+              src={biography.imageUrl}
+              alt={biography.imageAlt ?? biography.title ?? 'Wikimedia Commons image'}
+              className="h-auto w-full object-cover"
+            />
+          ) : (
+            <div className="flex min-h-48 items-center justify-center px-4 py-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
+              No image available.
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {biography.title && (
+            <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">{biography.title}</h3>
+          )}
+
+          {biography.description && (
+            <p className="text-sm italic text-zinc-500 dark:text-zinc-400">{biography.description}</p>
+          )}
+
+          {biography.extract && (
+            <p className="text-sm leading-7 text-zinc-700 dark:text-zinc-300">{biography.extract}</p>
+          )}
+
+          <div className="flex flex-wrap gap-3 text-sm">
+            {biography.wikipediaUrl && (
+              <a
+                href={biography.wikipediaUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-600 hover:underline dark:text-blue-400"
+              >
+                Read Wikipedia entry
+              </a>
+            )}
+            {biography.wikidataUrl && (
+              <a
+                href={biography.wikidataUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-600 hover:underline dark:text-blue-400"
+              >
+                View Wikidata record
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </Section>
+  );
 }
 
 // ─── Sections ────────────────────────────────────────────────────────────────
@@ -405,6 +518,8 @@ export function MakerDetail() {
   const [maker, setMaker] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [biography, setBiography] = useState(null);
+  const [isBiographyLoading, setIsBiographyLoading] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -440,6 +555,82 @@ export function MakerDetail() {
 
     fetchMaker();
   }, [id]);
+
+  useEffect(() => {
+    const entityId = extractWikidataEntityId(maker?.Wikidata_URI);
+    if (!entityId) {
+      setBiography(null);
+      setIsBiographyLoading(false);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const fetchBiography = async () => {
+      try {
+        setIsBiographyLoading(true);
+
+        const wikidataResponse = await fetch(`https://www.wikidata.org/wiki/Special:EntityData/${entityId}.json`);
+        if (!wikidataResponse.ok) {
+          throw new Error(`Failed to fetch Wikidata entity ${entityId}`);
+        }
+
+        const wikidataPayload = await wikidataResponse.json();
+        const entity = wikidataPayload?.entities?.[entityId];
+        if (!entity) {
+          if (!isCancelled) setBiography(null);
+          return;
+        }
+
+        const wikipediaTitle = entity?.sitelinks?.enwiki?.title ?? null;
+        const wikidataDescription =
+          entity?.descriptions?.en?.value ?? entity?.descriptions?.en-gb?.value ?? null;
+        const commonsImageName = getFirstClaimString(entity, 'P18');
+
+        let wikipediaSummary = null;
+        if (wikipediaTitle) {
+          const summaryResponse = await fetch(
+            `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikipediaTitle)}`
+          );
+
+          if (summaryResponse.ok) {
+            wikipediaSummary = await summaryResponse.json();
+          }
+        }
+
+        if (isCancelled) return;
+
+        setBiography({
+          title: wikipediaSummary?.title ?? entity?.labels?.en?.value ?? maker?.Label ?? null,
+          description: wikipediaSummary?.description ?? wikidataDescription,
+          extract: wikipediaSummary?.extract ?? null,
+          imageUrl:
+            wikipediaSummary?.thumbnail?.source ??
+            wikipediaSummary?.originalimage?.source ??
+            buildWikimediaImageUrl(commonsImageName),
+          imageAlt: wikipediaSummary?.title ?? entity?.labels?.en?.value ?? maker?.Label ?? null,
+          wikipediaUrl:
+            wikipediaSummary?.content_urls?.desktop?.page ??
+            (wikipediaTitle ? `https://en.wikipedia.org/wiki/${encodeURIComponent(wikipediaTitle.replace(/ /g, '_'))}` : null),
+          wikidataUrl: maker?.Wikidata_URI ?? `https://www.wikidata.org/wiki/${entityId}`,
+        });
+      } catch {
+        if (!isCancelled) {
+          setBiography(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsBiographyLoading(false);
+        }
+      }
+    };
+
+    fetchBiography();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [maker]);
 
   const fullName = maker
     ? maker.Label ||
@@ -521,52 +712,55 @@ export function MakerDetail() {
               )}
             </div>
 
-            {/* Core fields */}
-            <Section title="Details">
-              <dl className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3">
-                <Field label="Maker ID" value={maker.Maker_ID} />
-                <Field label="Label" value={maker.Label} />
-                <Field label="Maker Type" value={maker.Maker_Type} />
-                <Field label="Actor Type" value={maker.Actor_Type} />
-                <Field label="Organisation" value={maker.Organisation_Name} />
-                <Field label="Title" value={maker.Title} />
-                <Field label="Initials" value={maker.Initials} />
-                <Field label="Surname" value={maker.Surname} />
-                <Field label="First Name" value={maker.First_name} />
-                <Field label="Suffix" value={maker.Suffix} />
-                <Field label="Disambiguation" value={maker.Disambiguation_Numeral} />
-                <Field label="VIAF" value={maker.VIAF_URI} />
-                <Field label="Wikidata" value={maker.Wikidata_URI} />
-                <Field label="Alt Name 1" value={maker.Alt_name1} />
-                <Field label="Alt Name 2" value={maker.Alt_name2} />
-                <Field label="Alt Name 3" value={maker.Alt_name3} />
-                <Field label="Alt Name 4" value={maker.Alt_name4} />
-                <Field label="Alt Name 5" value={maker.Alt_name5} />
-                <Field label="Alt Name 6" value={maker.Alt_name6} />
-                <Field label="Alt Name 7" value={maker.Alt_name7} />
-                <Field label="Birth Date" value={formatYear(maker.Birth_Date)} />
-                <Field label="Birth Date Notes" value={maker.Birth_Date_Notes} />
-                <Field label="Establishment Date" value={formatYear(maker.Establishment_Date)} />
-                <Field label="Establishment Date Notes" value={maker.Establishment_Date_Notes} />
-                <Field label="Working Start Date" value={formatYear(maker.Working_Start_Date)} />
-                <Field label="Working Start Type" value={maker.Working_Start_Type} />
-                <Field label="Working Start Notes" value={maker.Working_Start_Notes} />
-                <Field label="Working End Date" value={formatYear(maker.Working_End_Date)} />
-                <Field label="Working End Type" value={maker.Working_End_Type} />
-                <Field label="Working End Notes" value={maker.Working_End_Notes} />
-                <Field label="Flourishing Start Date" value={formatYear(maker.Flourishing_Start_Date)} />
-                <Field label="Flourishing Start Notes" value={maker.Flourishing_Start_Date_Notes} />
-                <Field label="Flourishing End Date" value={formatYear(maker.Flourishing_End_Date)} />
-                <Field label="Flourishing End Notes" value={maker.Flourishing_End_Date_Notes} />
-                <Field label="Retirement Date" value={formatYear(maker.Retirement_Date)} />
-                <Field label="Retirement Date Notes" value={maker.Retirement_Date_Notes} />
-                <Field label="Death Date" value={formatYear(maker.Death_Date)} />
-                <Field label="Death Date Notes" value={maker.Death_Date_Notes} />
-                <Field label="Date 1" value={formatYear(maker.Date_1)} />
-                <Field label="Date 2" value={formatYear(maker.Date_2)} />
-                <Field label="Miscellaneous Information" value={maker.Misc_Info} />
-              </dl>
-            </Section>
+            <div className="grid gap-8 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)] xl:items-start">
+              <Section title="Details">
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3">
+                  <Field label="Maker ID" value={maker.Maker_ID} />
+                  <Field label="Label" value={maker.Label} />
+                  <Field label="Maker Type" value={maker.Maker_Type} />
+                  <Field label="Actor Type" value={maker.Actor_Type} />
+                  <Field label="Organisation" value={maker.Organisation_Name} />
+                  <Field label="Title" value={maker.Title} />
+                  <Field label="Initials" value={maker.Initials} />
+                  <Field label="Surname" value={maker.Surname} />
+                  <Field label="First Name" value={maker.First_name} />
+                  <Field label="Suffix" value={maker.Suffix} />
+                  <Field label="Disambiguation" value={maker.Disambiguation_Numeral} />
+                  <LinkField label="VIAF" href={maker.VIAF_URI} text="View VIAF record" />
+                  <LinkField label="Wikidata" href={maker.Wikidata_URI} text="View Wikidata record" />
+                  <Field label="Alt Name 1" value={maker.Alt_name1} />
+                  <Field label="Alt Name 2" value={maker.Alt_name2} />
+                  <Field label="Alt Name 3" value={maker.Alt_name3} />
+                  <Field label="Alt Name 4" value={maker.Alt_name4} />
+                  <Field label="Alt Name 5" value={maker.Alt_name5} />
+                  <Field label="Alt Name 6" value={maker.Alt_name6} />
+                  <Field label="Alt Name 7" value={maker.Alt_name7} />
+                  <Field label="Birth Date" value={formatYear(maker.Birth_Date)} />
+                  <Field label="Birth Date Notes" value={maker.Birth_Date_Notes} />
+                  <Field label="Establishment Date" value={formatYear(maker.Establishment_Date)} />
+                  <Field label="Establishment Date Notes" value={maker.Establishment_Date_Notes} />
+                  <Field label="Working Start Date" value={formatYear(maker.Working_Start_Date)} />
+                  <Field label="Working Start Type" value={maker.Working_Start_Type} />
+                  <Field label="Working Start Notes" value={maker.Working_Start_Notes} />
+                  <Field label="Working End Date" value={formatYear(maker.Working_End_Date)} />
+                  <Field label="Working End Type" value={maker.Working_End_Type} />
+                  <Field label="Working End Notes" value={maker.Working_End_Notes} />
+                  <Field label="Flourishing Start Date" value={formatYear(maker.Flourishing_Start_Date)} />
+                  <Field label="Flourishing Start Notes" value={maker.Flourishing_Start_Date_Notes} />
+                  <Field label="Flourishing End Date" value={formatYear(maker.Flourishing_End_Date)} />
+                  <Field label="Flourishing End Notes" value={maker.Flourishing_End_Date_Notes} />
+                  <Field label="Retirement Date" value={formatYear(maker.Retirement_Date)} />
+                  <Field label="Retirement Date Notes" value={maker.Retirement_Date_Notes} />
+                  <Field label="Death Date" value={formatYear(maker.Death_Date)} />
+                  <Field label="Death Date Notes" value={maker.Death_Date_Notes} />
+                  <Field label="Date 1" value={formatYear(maker.Date_1)} />
+                  <Field label="Date 2" value={formatYear(maker.Date_2)} />
+                  <Field label="Miscellaneous Information" value={maker.Misc_Info} />
+                </dl>
+              </Section>
+
+              <BiographySection biography={biography} isLoading={isBiographyLoading} />
+            </div>
 
             <AddressesSection addresses={maker.addresses} />
             {maker.Points && maker.Points.length > 0 && (
