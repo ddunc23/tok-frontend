@@ -15,11 +15,13 @@ function normalizeOption(option) {
   const id = option?.id ?? option?.documentId;
   const label = String(option?.label ?? option?.name ?? option?.title ?? id ?? '');
   const count = option?.count;
+  const searchText = String(option?.searchText ?? label);
 
   return {
     id,
     label,
     count: typeof count === 'number' ? count : null,
+    searchText,
   };
 }
 
@@ -61,7 +63,7 @@ export default function ComboBox({
   const filteredOptions = useMemo(() => {
     const lowered = query.trim().toLowerCase();
     if (!lowered) return normalizedOptions;
-    return normalizedOptions.filter((option) => option.label.toLowerCase().includes(lowered));
+    return normalizedOptions.filter((option) => option.searchText.toLowerCase().includes(lowered));
   }, [normalizedOptions, query]);
 
   const selectedValue = selectedOptions;

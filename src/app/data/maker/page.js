@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import TableDisplay from '@/components/tableDisplay';
 import DateFacet from '@/components/dateFacet';
 import GuildFacet from '@/components/guildFacet';
+import InstrumentFacet from '@/components/instrumentFacet';
 import MakerSearchBox from '@/components/makerSearchBox';
 import SurnameFacet from '@/components/surnameFacet';
 import TownFacet from '@/components/townFacet';
@@ -22,6 +23,7 @@ function Makers() {
 
   const [selectedGuildIds, setSelectedGuildIds] = useState([]);
   const [selectedTownIds, setSelectedTownIds] = useState([]);
+  const [selectedInstrumentIds, setSelectedInstrumentIds] = useState([]);
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [surnameInitial, setSurnameInitial] = useState('');
   const [surnameQuery, setSurnameQuery] = useState('');
@@ -39,6 +41,25 @@ function Makers() {
 
   const [guildCounts, setGuildCounts] = useState({});
   const [townCounts, setTownCounts] = useState({});
+  const [instrumentCounts, setInstrumentCounts] = useState({});
+  const [instrumentOptions, setInstrumentOptions] = useState(null);
+
+  const selectedInstrumentCodes = useMemo(() => {
+    if (!Array.isArray(instrumentOptions) || selectedInstrumentIds.length === 0) return [];
+
+    const selectedIdSet = new Set(selectedInstrumentIds.map((id) => Number(id)));
+    const codes = instrumentOptions
+      .filter((option) => selectedIdSet.has(Number(option.id)))
+      .map((option) => Number(option.termCode))
+      .filter((code) => Number.isFinite(code));
+
+    return [...new Set(codes)];
+  }, [instrumentOptions, selectedInstrumentIds]);
+
+  const selectedInstrumentCodesKey = useMemo(
+    () => [...selectedInstrumentCodes].sort((a, b) => a - b).join(','),
+    [selectedInstrumentCodes]
+  );
 
   useEffect(() => {
     const q = searchParams.get('q') ?? '';
@@ -47,10 +68,15 @@ function Makers() {
     const to = searchParams.get('to') ?? '';
     const guildsRaw = searchParams.get('guilds') ?? '';
     const townsRaw = searchParams.get('towns') ?? '';
+    const instrumentsRaw = searchParams.get('instruments') ?? '';
     const pageRaw = searchParams.get('page') ?? '1';
 
     const parsedGuilds = guildsRaw.split(',').filter(Boolean);
     const parsedTowns = townsRaw
+      .split(',')
+      .map((value) => Number.parseInt(value, 10))
+      .filter((value) => !Number.isNaN(value));
+    const parsedInstruments = instrumentsRaw
       .split(',')
       .map((value) => Number.parseInt(value, 10))
       .filter((value) => !Number.isNaN(value));
@@ -63,6 +89,7 @@ function Makers() {
     setDateRange({ from, to });
     setSelectedGuildIds(parsedGuilds);
     setSelectedTownIds(parsedTowns);
+    setSelectedInstrumentIds(parsedInstruments);
     setCurrentPage(safePage);
     setPageInput(String(safePage));
     setIsHydratedFromQuery(true);
@@ -91,6 +118,9 @@ function Makers() {
     if (selectedTownIds.length > 0) nextParams.set('towns', selectedTownIds.join(','));
     else nextParams.delete('towns');
 
+    if (selectedInstrumentIds.length > 0) nextParams.set('instruments', selectedInstrumentIds.join(','));
+    else nextParams.delete('instruments');
+
     if (currentPage > 1) nextParams.set('page', String(currentPage));
     else nextParams.delete('page');
 
@@ -109,6 +139,7 @@ function Makers() {
     router,
     searchParams,
     selectedGuildIds,
+    selectedInstrumentIds,
     selectedTownIds,
     surnameInitial,
     surnameQuery,
@@ -149,6 +180,23 @@ function Makers() {
                 id: { $in: selectedTownIds },
               },
             },
+          });
+        }
+
+        if (selectedInstrumentCodes.length > 0) {
+          filterClauses.push({
+            $or: [
+              {
+                instruments_known: {
+                  inst_code: { $in: selectedInstrumentCodes },
+                },
+              },
+              {
+                instruments_advertised: {
+                  inst_code: { $in: selectedInstrumentCodes },
+                },
+              },
+            ],
           });
         }
 
@@ -195,6 +243,8 @@ function Makers() {
     pageSize,
     dateRange,
     selectedGuildIds,
+    selectedInstrumentIds,
+    selectedInstrumentCodesKey,
     selectedTownIds,
     surnameInitial,
     surnameQuery,
@@ -219,6 +269,8 @@ function Makers() {
       const data = await response.json();
       setGuildCounts(data.guilds || {});
       setTownCounts(data.towns || {});
+      setInstrumentCounts(data.instruments || {});
+      setInstrumentOptions(Array.isArray(data.instrumentOptions) ? data.instrumentOptions : []);
     } catch (error) {
       console.error('Error fetching facet counts:', error);
     }
@@ -296,6 +348,12 @@ function Makers() {
 
   const handleDateRangeChange = (range) => {
     setDateRange(range);
+    setCurrentPage(1);
+    setPageInput('1');
+  };
+
+  const handleInstrumentChange = (ids) => {
+    setSelectedInstrumentIds(ids);
     setCurrentPage(1);
     setPageInput('1');
   };
@@ -392,6 +450,12 @@ function Makers() {
 
           <div className="flex flex-col gap-6">
             <DateFacet dateRange={dateRange} onChange={handleDateRangeChange} />
+            <InstrumentFacet
+              selectedIds={selectedInstrumentIds}
+              onChange={handleInstrumentChange}
+              counts={instrumentCounts}
+              options={instrumentOptions}
+            />
             <GuildFacet selectedIds={selectedGuildIds} onChange={handleGuildChange} counts={guildCounts} />
             <TownFacet selectedIds={selectedTownIds} onChange={handleTownChange} counts={townCounts} />
           </div>

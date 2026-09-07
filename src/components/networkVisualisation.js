@@ -37,6 +37,12 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
   const [expandedMakers, setExpandedMakers] = useState([]);
   const [isExpanding, setIsExpanding] = useState(false);
   const [expandError, setExpandError] = useState('');
+  const [visibleTypes, setVisibleTypes] = useState({
+    maker: true,
+    guild: true,
+    town: true,
+    instrument: true,
+  });
 
   const getMakerDocumentId = (item) => item?.documentId ?? item?.id ?? null;
   const getMakerLabel = (item) =>
@@ -59,11 +65,15 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
     };
 
     for (const association of makerData?.term_associations ?? []) {
-      const type = association?.association_type;
+      const type = String(association?.association_type ?? '').toUpperCase();
       if (type !== 'ADVERTISED' && type !== 'KNOWN') continue;
 
       const term = association?.term;
-      const rawLabel = term?.preferred_label ?? term?.name ?? association?.evidence_label;
+      const rawLabel =
+        term?.preferred_label ??
+        term?.preferred_term ??
+        term?.name ??
+        association?.evidence_label;
       if (!rawLabel) continue;
 
       const label = String(rawLabel).replace(/,\s*$/, '').trim();
@@ -298,7 +308,10 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
     const addInstrumentNodeAndEdge = (instrument, relationLabel) => {
       if (!instrument) return;
 
-      const instrumentLabelText = instrument.label ?? instrument.inst_name;
+      const rawInstrumentLabel = instrument.label ?? instrument.inst_name;
+      const instrumentLabelText = rawInstrumentLabel
+        ? String(rawInstrumentLabel).replace(/,\s*$/, '').trim()
+        : null;
       const instrumentKey = instrument.id ?? `${instrumentLabelText ?? 'unknown'}-${instrument.inst_code ?? ''}`;
       const instrumentId = `instrument-${instrumentKey}`;
       const instrumentLabel = instrumentLabelText ?? `Instrument #${instrumentKey}`;
@@ -330,8 +343,30 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
       addInstrumentNodeAndEdge(instrument, 'known for');
     }
 
-    return { nodes, edges };
-  }, [maker, expandedMakers]);
+    const filteredNodeIds = new Set(
+      nodes
+        .filter((node) => {
+          if (node.id === focalId) return true; // Keep focal maker always visible.
+          const nodeType = node?.data?.type;
+          return visibleTypes[nodeType] !== false;
+        })
+        .map((node) => node.id)
+    );
+
+    const filteredNodes = nodes.filter((node) => filteredNodeIds.has(node.id));
+    const filteredEdges = edges.filter(
+      (edge) => filteredNodeIds.has(edge.source) && filteredNodeIds.has(edge.target)
+    );
+
+    return { nodes: filteredNodes, edges: filteredEdges };
+  }, [maker, expandedMakers, visibleTypes]);
+
+  const toggleType = (type) => {
+    setVisibleTypes((current) => ({
+      ...current,
+      [type]: !current[type],
+    }));
+  };
 
   const handleNodeClick = (node) => {
     if (node?.data?.type === 'maker' && node.data.makerId && node.data.makerId !== maker?.documentId) {
@@ -368,6 +403,35 @@ export default function NetworkVisualisation({ maker, height = '500px' }) {
             {expandedMakers.length} level{expandedMakers.length !== 1 ? 's' : ''} expanded
           </p>
         )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 rounded border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+        <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          Show
+        </span>
+        {[
+          { key: 'maker', label: 'Makers' },
+          { key: 'guild', label: 'Guilds' },
+          { key: 'town', label: 'Towns' },
+          { key: 'instrument', label: 'Instruments' },
+        ].map((item) => {
+          const isActive = visibleTypes[item.key];
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => toggleType(item.key)}
+              className={[
+                'rounded border px-2 py-1 text-xs font-medium transition-colors',
+                isActive
+                  ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+                  : 'border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800',
+              ].join(' ')}
+              aria-pressed={isActive}
+            >
+              {item.label}
+            </button>
+          );
+        })}
       </div>
       <div style={{ height }} className="w-full relative overflow-hidden rounded border border-zinc-200 bg-zinc-900 dark:border-zinc-700">
         <GraphCanvas
