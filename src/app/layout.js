@@ -29,8 +29,7 @@ import {
   HomeIcon,
   XMarkIcon,
   UserIcon,
-  UserGroupIcon,
-  MapIcon
+  UserGroupIcon
 } from '@heroicons/react/24/outline'
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -43,9 +42,8 @@ export default function RootLayout({ children }) {
   const navigation = [
     { name: 'Home', href: '/', icon: HomeIcon },
     { name: 'Instrument Makers', href: '/data/maker', icon: UserIcon },
+    { name: 'Guilds', href: '/data/guild', icon: UserGroupIcon },
     { name: 'Instruments', href: '/data/instrument', icon: CircleStackIcon },
-    { name: 'Social Graph', href: '/data/graph', icon: UserGroupIcon },
-    { name: 'Map', href: '/data/map', icon: MapIcon },
   ]
 
   function classNames(...classes) {
@@ -156,7 +154,7 @@ export default function RootLayout({ children }) {
         </div>
 
         <div className="flex min-h-screen w-full flex-col lg:pl-72">
-          <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-xs sm:gap-x-6 sm:px-6 lg:px-8">
+          <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-xs sm:gap-x-6 sm:px-6 lg:px-8 lg:hidden">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}

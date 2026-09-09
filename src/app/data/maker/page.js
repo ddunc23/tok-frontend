@@ -8,10 +8,15 @@ import DateFacet from '@/components/dateFacet';
 import GuildFacet from '@/components/guildFacet';
 import InstrumentFacet from '@/components/instrumentFacet';
 import MakerResultsNetwork from '@/components/makerResultsNetwork';
+import MakerResultsTimeline from '@/components/makerResultsTimeline';
 import MakerSearchBox from '@/components/makerSearchBox';
+import MiniMap from '@/components/miniMap';
 import SurnameFacet from '@/components/surnameFacet';
 import TownFacet from '@/components/townFacet';
 import { requests } from '@/utils/requests';
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 500];
+const DEFAULT_PAGE_SIZE = 25;
 
 function Makers() {
   const router = useRouter();
@@ -32,11 +37,12 @@ function Makers() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInput, setPageInput] = useState('1');
-  const [pageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [isAppendingPage, setIsAppendingPage] = useState(false);
   const [isHydratedFromQuery, setIsHydratedFromQuery] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
-    pageSize: 25,
+    pageSize: DEFAULT_PAGE_SIZE,
     pageCount: 1,
     total: 0,
   });
@@ -63,6 +69,11 @@ function Makers() {
     [selectedInstrumentCodes]
   );
 
+  const makerDocumentIds = useMemo(
+    () => makers.map((maker) => maker?.documentId).filter(Boolean),
+    [makers]
+  );
+
   useEffect(() => {
     const q = searchParams.get('q') ?? '';
     const initial = (searchParams.get('initial') ?? '').toUpperCase();
@@ -72,6 +83,7 @@ function Makers() {
     const townsRaw = searchParams.get('towns') ?? '';
     const instrumentsRaw = searchParams.get('instruments') ?? '';
     const pageRaw = searchParams.get('page') ?? '1';
+    const pageSizeRaw = searchParams.get('pageSize') ?? String(DEFAULT_PAGE_SIZE);
 
     const parsedGuilds = guildsRaw.split(',').filter(Boolean);
     const parsedTowns = townsRaw
@@ -85,6 +97,10 @@ function Makers() {
 
     const parsedPage = Number.parseInt(pageRaw, 10);
     const safePage = Number.isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
+    const parsedPageSize = Number.parseInt(pageSizeRaw, 10);
+    const safePageSize = PAGE_SIZE_OPTIONS.includes(parsedPageSize)
+      ? parsedPageSize
+      : DEFAULT_PAGE_SIZE;
 
     setSurnameQuery(q);
     setSurnameInitial(initial.length === 1 ? initial : '');
@@ -94,6 +110,7 @@ function Makers() {
     setSelectedInstrumentIds(parsedInstruments);
     setCurrentPage(safePage);
     setPageInput(String(safePage));
+    setPageSize(safePageSize);
     setIsHydratedFromQuery(true);
   }, [searchParams]);
 
@@ -126,6 +143,9 @@ function Makers() {
     if (currentPage > 1) nextParams.set('page', String(currentPage));
     else nextParams.delete('page');
 
+    if (pageSize !== DEFAULT_PAGE_SIZE) nextParams.set('pageSize', String(pageSize));
+    else nextParams.delete('pageSize');
+
     const currentQuery = searchParams.toString();
     const nextQuery = nextParams.toString();
 
@@ -137,6 +157,7 @@ function Makers() {
     dateRange.from,
     dateRange.to,
     isHydratedFromQuery,
+    pageSize,
     pathname,
     router,
     searchParams,
@@ -226,7 +247,24 @@ function Makers() {
           pageSize,
         });
 
-        setMakers(response?.data ?? []);
+        setMakers((current) => {
+          const nextRows = response?.data ?? [];
+          if (!isAppendingPage || currentPage <= 1) {
+            return nextRows;
+          }
+
+          const merged = [...current];
+          const seen = new Set(merged.map((row) => String(row?.documentId ?? row?.id ?? '')).filter(Boolean));
+
+          for (const row of nextRows) {
+            const key = String(row?.documentId ?? row?.id ?? '');
+            if (key && seen.has(key)) continue;
+            if (key) seen.add(key);
+            merged.push(row);
+          }
+
+          return merged;
+        });
         setPagination(
           response?.meta?.pagination ?? {
             page: currentPage,
@@ -241,6 +279,7 @@ function Makers() {
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : 'Error fetching makers.');
       } finally {
+        setIsAppendingPage(false);
         setIsLoading(false);
       }
     };
@@ -343,40 +382,62 @@ function Makers() {
   };
 
   const handleTownChange = (ids) => {
+    setIsAppendingPage(false);
     setSelectedTownIds(ids);
     setCurrentPage(1);
     setPageInput('1');
   };
 
   const handleGuildChange = (ids) => {
+    setIsAppendingPage(false);
     setSelectedGuildIds(ids);
     setCurrentPage(1);
     setPageInput('1');
   };
 
   const handleDateRangeChange = (range) => {
+    setIsAppendingPage(false);
     setDateRange(range);
     setCurrentPage(1);
     setPageInput('1');
   };
 
   const handleInstrumentChange = (ids) => {
+    setIsAppendingPage(false);
     setSelectedInstrumentIds(ids);
     setCurrentPage(1);
     setPageInput('1');
   };
 
   const handleSurnameChange = (value) => {
+    setIsAppendingPage(false);
     setSurnameQuery(value);
     setCurrentPage(1);
     setPageInput('1');
   };
 
   const handleSurnameInitialChange = (value) => {
+    setIsAppendingPage(false);
     setSurnameInitial(value);
     setCurrentPage(1);
     setPageInput('1');
   };
+
+  const handleLoadMore = () => {
+    if (isLoading || currentPage >= (pagination.pageCount || 1)) return;
+    setIsAppendingPage(true);
+    setCurrentPage((page) => page + 1);
+  };
+
+  const handlePageSizeChange = (nextSize) => {
+    if (!PAGE_SIZE_OPTIONS.includes(nextSize) || nextSize === pageSize) return;
+    setIsAppendingPage(false);
+    setPageSize(nextSize);
+    setCurrentPage(1);
+    setPageInput('1');
+  };
+
+  const canLoadMore = currentPage < (pagination.pageCount || 1);
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-zinc-50 font-sans dark:bg-black">
@@ -390,6 +451,8 @@ function Makers() {
                 {[
                   { id: 'list', label: 'List' },
                   { id: 'network', label: 'Network' },
+                  { id: 'map', label: 'Map' },
+                  { id: 'timeline', label: 'Timeline' },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -406,7 +469,7 @@ function Makers() {
                 ))}
               </div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Network reflects the currently loaded result set on this page.
+                Visual tabs reflect the currently loaded result set on this page.
               </p>
             </div>
 
@@ -423,18 +486,40 @@ function Makers() {
               <p className="text-zinc-600 dark:text-zinc-300">Loading makers…</p>
             ) : activeTab === 'network' ? (
               <MakerResultsNetwork makers={makers} />
+            ) : activeTab === 'map' ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                    Showing {makers.length} loaded makers on the map out of {pagination.total} matching results.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleLoadMore}
+                    disabled={isLoading || !canLoadMore}
+                    className="rounded border border-zinc-300 px-3 py-1 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200"
+                  >
+                    {isAppendingPage ? 'Loading more…' : 'Load more map results'}
+                  </button>
+                </div>
+                <MiniMap makerDocumentIds={makerDocumentIds} />
+              </div>
+            ) : activeTab === 'timeline' ? (
+              <MakerResultsTimeline makers={makers} />
             ) : (
               <>
                 <TableDisplay
                   data={makers}
                   columns={columns}
                   rowKey="documentId"
+                  pageSize={pageSize}
+                  pageSizeOptions={PAGE_SIZE_OPTIONS}
+                  onPageSizeChange={handlePageSizeChange}
                   emptyMessage="No makers found."
                 />
 
                 <div className="flex items-center justify-between gap-4">
                   <p className="text-sm text-zinc-600 dark:text-zinc-300">
-                    Page {pagination.page} of {pagination.pageCount} ({pagination.total} total)
+                    Page {pagination.page} of {pagination.pageCount} ({pagination.total} total, {makers.length} loaded)
                   </p>
 
                   <div className="flex items-center gap-2">

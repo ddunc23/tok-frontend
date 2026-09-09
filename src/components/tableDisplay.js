@@ -36,9 +36,14 @@ export default function TableDisplay({
 	data = [],
 	columns = [],
 	rowKey = 'id',
+	pageSize = 25,
+	pageSizeOptions = [25, 50, 100, 500],
+	onPageSizeChange,
 	emptyMessage = 'No rows to display.',
 }) {
 	const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+	const showPageSizeControls =
+		typeof onPageSizeChange === 'function' && Array.isArray(pageSizeOptions) && pageSizeOptions.length > 0;
 
 	const normalizedColumns = useMemo(() => {
 		return columns.map((column) => {
@@ -97,7 +102,35 @@ export default function TableDisplay({
 	};
 
 	return (
-		<div className="w-full overflow-x-auto rounded border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+		<div className="w-full rounded border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+			{showPageSizeControls ? (
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+					<p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+						Rows per page
+					</p>
+					<div className="flex flex-wrap items-center gap-2">
+						{pageSizeOptions.map((sizeOption) => {
+							const isActive = Number(pageSize) === Number(sizeOption);
+
+							return (
+								<button
+									key={sizeOption}
+									type="button"
+									onClick={() => onPageSizeChange(Number(sizeOption))}
+									className={`rounded border px-3 py-1 text-xs font-medium transition-colors ${
+										isActive
+											? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+											: 'border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800'
+									}`}
+								>
+									{sizeOption}
+								</button>
+							);
+						})}
+					</div>
+				</div>
+			) : null}
+			<div className="overflow-x-auto">
 			<table className="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
 				<thead className="bg-zinc-100 dark:bg-zinc-900">
 					<tr>
@@ -161,6 +194,7 @@ export default function TableDisplay({
 					)}
 				</tbody>
 			</table>
+			</div>
 		</div>
 	);
 }

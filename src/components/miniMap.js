@@ -22,6 +22,10 @@ export default function MiniMap({ makerDocumentIds }) {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const popupRef = useRef(null);
+  const loadedMakerIdsRef = useRef(new Set());
+  const makerColourByIdRef = useRef(new Map());
+  const hasFittedBoundsRef = useRef(false);
+  const hasPointerHandlersRef = useRef(false);
   const [isMapReady, setIsMapReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -175,114 +179,167 @@ export default function MiniMap({ makerDocumentIds }) {
     // Palette for colouring points by maker
     const COLOURS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];
 
-    const fetchPointsForMakers = async () => {
-      try {
-        setIsLoading(true);
+    const updateMapSource = async (features, shouldFitBounds) => {
+      if (!map.current) return;
 
-        // Fetch all makers in parallel
-        const responses = await Promise.all(
-          ids.map((id) => requests.makersExtended.get(id, { populate: 'Points' }))
-        );
+      const geojson = { type: 'FeatureCollection', features };
 
-        const allFeatures = [];
+      if (!map.current.getSource('points')) {
+        map.current.addSource('points', { type: 'geojson', data: geojson });
+      } else {
+        map.current.getSource('points').setData(geojson);
+      }
 
-        responses.forEach((response, index) => {
-          const maker = response?.data;
-          const associatedPoints = maker?.Points ?? [];
-          const colour = COLOURS[index % COLOURS.length];
-          const makerName =
-            maker?.Label ||
-            [maker?.First_name, maker?.Surname].filter(Boolean).join(' ') ||
-            maker?.Organisation_Name ||
-            `Maker #${maker?.id}`;
-
-          associatedPoints
-            .filter((p) => p.Latitude && p.Longitude)
-            .forEach((point) => {
-              allFeatures.push({
-                type: 'Feature',
-                geometry: {
-                  type: 'Point',
-                  coordinates: [point.Longitude, point.Latitude],
-                },
-                properties: {
-                  id: point.id,
-                  documentId: point.documentId,
-                  Point_ID: point.Point_ID,
-                  colour,
-                  makerName,
-                },
-              });
-            });
+      if (!map.current.getLayer('points-layer')) {
+        map.current.addLayer({
+          id: 'points-layer',
+          type: 'circle',
+          source: 'points',
+          paint: {
+            'circle-radius': [
+              'interpolate', ['linear'], ['zoom'],
+              0, 2, 10, 4, 15, 8,
+            ],
+            'circle-color': ['get', 'colour'],
+            'circle-opacity': 0.8,
+          },
         });
+      }
 
-        setPoints(allFeatures);
+      if (!map.current.getLayer('points-labels-layer')) {
+        map.current.addLayer({
+          id: 'points-labels-layer',
+          type: 'symbol',
+          source: 'points',
+          layout: {
+            'text-field': ['get', 'makerName'],
+            'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+            'text-size': 11,
+            'text-offset': [0, 1.2],
+            'text-anchor': 'top',
+            'text-allow-overlap': false,
+          },
+          paint: {
+            'text-color': ['get', 'colour'],
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 1.5,
+          },
+        });
+      }
 
-        if (allFeatures.length === 0) {
-          setErrorMessage('No locations available.');
-          setIsLoading(false);
-          return;
-        }
-
-        const geojson = { type: 'FeatureCollection', features: allFeatures };
-
-        if (!map.current.getSource('points')) {
-          map.current.addSource('points', { type: 'geojson', data: geojson });
-        } else {
-          map.current.getSource('points').setData(geojson);
-        }
-
-        if (!map.current.getLayer('points-layer')) {
-          map.current.addLayer({
-            id: 'points-layer',
-            type: 'circle',
-            source: 'points',
-            paint: {
-              'circle-radius': [
-                'interpolate', ['linear'], ['zoom'],
-                0, 2, 10, 4, 15, 8,
-              ],
-              'circle-color': ['get', 'colour'],
-              'circle-opacity': 0.8,
-            },
-          });
-        }
-
-        if (!map.current.getLayer('points-labels-layer')) {
-          map.current.addLayer({
-            id: 'points-labels-layer',
-            type: 'symbol',
-            source: 'points',
-            layout: {
-              'text-field': ['get', 'makerName'],
-              'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-              'text-size': 11,
-              'text-offset': [0, 1.2],
-              'text-anchor': 'top',
-              'text-allow-overlap': false,
-            },
-            paint: {
-              'text-color': ['get', 'colour'],
-              'text-halo-color': '#ffffff',
-              'text-halo-width': 1.5,
-            },
-          });
-        }
-
+      if (!hasPointerHandlersRef.current) {
         map.current.on('mouseenter', 'points-layer', () => {
           map.current.getCanvas().style.cursor = 'pointer';
         });
         map.current.on('mouseleave', 'points-layer', () => {
           map.current.getCanvas().style.cursor = '';
         });
+        hasPointerHandlersRef.current = true;
+      }
 
-        // Fit bounds to all points
-        const maplibregl = (await import('maplibre-gl')).default;
-        const bounds = allFeatures.reduce(
-          (b, feature) => b.extend(feature.geometry.coordinates),
-          new maplibregl.LngLatBounds(allFeatures[0].geometry.coordinates, allFeatures[0].geometry.coordinates)
-        );
-        map.current.fitBounds(bounds, { padding: 40 });
+      if (!shouldFitBounds || features.length === 0) return;
+
+      const maplibregl = (await import('maplibre-gl')).default;
+      const bounds = features.reduce(
+        (b, feature) => b.extend(feature.geometry.coordinates),
+        new maplibregl.LngLatBounds(features[0].geometry.coordinates, features[0].geometry.coordinates)
+      );
+      map.current.fitBounds(bounds, { padding: 40 });
+      hasFittedBoundsRef.current = true;
+    };
+
+    const buildFeaturesForIds = async (idsToFetch) => {
+      const responses = await Promise.all(
+        idsToFetch.map((id) => requests.makersExtended.get(id, { populate: 'Points' }))
+      );
+
+      const features = [];
+
+      responses.forEach((response, index) => {
+        const maker = response?.data;
+        const makerId = String(idsToFetch[index] ?? maker?.documentId ?? maker?.id ?? '');
+        const associatedPoints = maker?.Points ?? [];
+
+        if (!makerColourByIdRef.current.has(makerId)) {
+          const colourIndex = makerColourByIdRef.current.size % COLOURS.length;
+          makerColourByIdRef.current.set(makerId, COLOURS[colourIndex]);
+        }
+
+        const colour = makerColourByIdRef.current.get(makerId);
+        const makerName =
+          maker?.Label ||
+          [maker?.First_name, maker?.Surname].filter(Boolean).join(' ') ||
+          maker?.Organisation_Name ||
+          `Maker #${maker?.id}`;
+
+        associatedPoints
+          .filter((p) => p.Latitude && p.Longitude)
+          .forEach((point) => {
+            features.push({
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: [point.Longitude, point.Latitude],
+              },
+              properties: {
+                id: point.id,
+                documentId: point.documentId,
+                Point_ID: point.Point_ID,
+                colour,
+                makerName,
+                makerId,
+              },
+            });
+          });
+      });
+
+      return features;
+    };
+
+    const fetchPointsForMakers = async () => {
+      try {
+        setIsLoading(true);
+
+        const nextIds = new Set(ids.map((id) => String(id)).filter(Boolean));
+        const loadedIds = loadedMakerIdsRef.current;
+        const isAppendOnly =
+          loadedIds.size > 0 &&
+          [...loadedIds].every((id) => nextIds.has(id)) &&
+          nextIds.size >= loadedIds.size;
+
+        const idsToFetch = isAppendOnly
+          ? [...nextIds].filter((id) => !loadedIds.has(id))
+          : [...nextIds];
+
+        if (!isAppendOnly) {
+          loadedMakerIdsRef.current = new Set();
+          makerColourByIdRef.current = new Map();
+          hasFittedBoundsRef.current = false;
+          setPoints([]);
+        }
+
+        if (idsToFetch.length === 0) {
+          setIsLoading(false);
+          return;
+        }
+
+        const newFeatures = await buildFeaturesForIds(idsToFetch);
+
+        const nextFeatures = isAppendOnly
+          ? [...points, ...newFeatures]
+          : newFeatures;
+
+        setPoints(nextFeatures);
+
+        idsToFetch.forEach((id) => loadedMakerIdsRef.current.add(String(id)));
+
+        if (nextFeatures.length === 0) {
+          setErrorMessage('No locations available.');
+          setIsLoading(false);
+          return;
+        }
+
+        await updateMapSource(nextFeatures, !hasFittedBoundsRef.current);
 
         setErrorMessage('');
       } catch (error) {
